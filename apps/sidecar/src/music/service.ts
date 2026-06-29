@@ -620,7 +620,7 @@ export class MusicService {
       debug_calm: { intensity: 'low', distraction: 'minimal', animation: 'subtle', glow: '#6F8FAF' },
       deep_refactor: { intensity: 'low', distraction: 'minimal', animation: 'subtle', glow: '#7E6FB5' },
       review_focus: { intensity: 'low', distraction: 'minimal', animation: 'none', glow: '#7A8B9A' },
-      emergency_focus: { intensity: 'low', distraction: 'minimal', animation: 'none', glow: '#B56B6B' },
+      emergency_focus: { intensity: 'low', distraction: 'minimal', animation: 'subtle', glow: '#B56B6B' },
       low_energy: { intensity: 'low', distraction: 'minimal', animation: 'subtle', glow: '#9A8BAF' },
       late_night_flow: { intensity: 'low', distraction: 'minimal', animation: 'subtle', glow: '#4A5A7A' },
       recovery_mode: { intensity: 'low', distraction: 'minimal', animation: 'subtle', glow: '#58A6A6' },

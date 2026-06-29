@@ -130,7 +130,7 @@ export const atmosphereMap: Record<CodingMoodState, AtmosphereConfig> = {
   },
   emergency_focus: {
     glowColor: '#B56B6B',
-    animationLevel: 'none',
+    animationLevel: 'subtle',
     waveSpeed: 'static',
   },
   low_energy: {

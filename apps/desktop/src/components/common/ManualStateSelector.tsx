@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { UserManualState, CodingMoodState } from '@music-coding/shared-types';
 import { useContextStore } from '@/stores/contextStore';
+import { useUIAtmosphereStore } from '@/stores/uiAtmosphereStore';
 import { fetchRecommendation, autoPlayRecommendation } from '@/clients/musicClient';
 import { IconAuto, IconTarget, IconBrain, IconCreative, IconWrench, IconBook, IconEnergy, IconNight, IconCity, IconWave, IconAlert, IconChevronDown, IconChevronRight } from '@/components/common/Icons';
 import s from '@/styles/layout.module.css';
@@ -62,6 +63,9 @@ export function ManualStateSelector() {
     setManualState(state);
     saveManualState(state);
     setExpanded(false); // 选择后收起
+
+    // 立即更新氛围层，不等推荐结果，用户切换时即时感知
+    useUIAtmosphereStore.getState().setMood(mood);
 
     try {
       await fetch(`${SIDECAR_BASE}/context/manual-state`, {
