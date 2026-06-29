@@ -1,0 +1,14 @@
+{
+  "name": "@music-coding/ui-tokens",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@music-coding/shared-types": "workspace:*"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nickel-org/nickel.rs/main/examples/example_assets/tauri-conf-schema.json",
+  "productName": "Coding Music Agent",
+  "version": "1.0.1",
+  "identifier": "com.music-coding.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "beforeBundleCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Coding Music Agent",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1200,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "沉浸式桌面编程工作舱",
+    "longDescription": "面向 AI Coding 用户的沉浸式桌面工作舱，内置编程 Agent，音乐 Agent 根据开发状态自动调节声音环境与界面氛围。",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256"
+    },
+    "resources": [
+      "sidecar-bundle.js"
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

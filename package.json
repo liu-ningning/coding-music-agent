@@ -1,0 +1,31 @@
+{
+  "name": "music-coding",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm dev:sidecar\" \"pnpm dev:desktop\"",
+    "dev:desktop": "pnpm --filter @music-coding/desktop dev",
+    "dev:sidecar": "pnpm --filter @music-coding/sidecar dev",
+    "build": "pnpm build:sidecar && pnpm build:desktop",
+    "build:desktop": "pnpm --filter @music-coding/desktop build",
+    "build:sidecar": "pnpm --filter @music-coding/sidecar build",
+    "build:sidecar:binary": "pnpm --filter @music-coding/sidecar build:binary",
+    "copy:netease": "mkdir -p \"apps/desktop/src-tauri/target/release/bundle/macos/Coding Music Agent.app/Contents/Resources/sidecar_node_modules\" && cp -RL apps/desktop/src-tauri/sidecar_deps/node_modules/* \"apps/desktop/src-tauri/target/release/bundle/macos/Coding Music Agent.app/Contents/Resources/sidecar_node_modules/\"",
+    "build:app": "pnpm clean && pnpm build:sidecar && pnpm build:sidecar:binary && pnpm build:desktop && pnpm --filter @music-coding/desktop tauri:build",
+    "package:macos": "pnpm build:app && pnpm copy:netease && pnpm build:dmg && pnpm install:app",
+    "package:version": "bash scripts/update-version.sh",
+    "install:app": "cp -R \"apps/desktop/src-tauri/target/release/bundle/macos/Coding Music Agent.app\" /Applications/",
+    "build:dmg": "hdiutil create -volname 'Coding Music Agent' -srcfolder 'apps/desktop/src-tauri/target/release/bundle/macos/Coding Music Agent.app' -ov -format UDZO 'apps/desktop/src-tauri/target/release/bundle/dmg/Coding Music Agent.dmg'",
+    "clean": "rm -rf apps/desktop/src-tauri/target",
+    "tauri:dev": "pnpm --filter @music-coding/desktop tauri:dev",
+    "tauri:build": "pnpm --filter @music-coding/desktop tauri:build",
+    "package": "pnpm build:app",
+    "package:dmg": "pnpm -w run package:macos",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

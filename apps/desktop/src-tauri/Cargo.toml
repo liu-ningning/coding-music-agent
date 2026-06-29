@@ -1,0 +1,30 @@
+[package]
+name = "music-coding"
+version = "1.0.1"
+description = "Coding Music Agent - 沉浸式桌面编程工作舱"
+authors = ["liuningning"]
+edition = "2021"
+
+[lib]
+name = "music_coding_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+tauri-plugin-http = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["time"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = false
