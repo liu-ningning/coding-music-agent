@@ -95,8 +95,10 @@ export function AgentConsole() {
           <div className={s.consoleEmpty}>
             {sessionId ? (
               <>
-                <div>准备开始一个新的 Coding Session。</div>
-                <div>你可以直接描述要完成的开发任务。</div>
+                <div style={{ fontSize: 15, marginBottom: 8, color: 'var(--color-text-primary)' }}>
+                  Session 已就绪
+                </div>
+                <div>输入你的开发任务，开始编程</div>
               </>
             ) : (
               <>
