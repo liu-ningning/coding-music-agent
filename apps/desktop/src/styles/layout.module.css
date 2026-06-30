@@ -1375,10 +1375,32 @@
 }
 
 .topStripTime {
+  display: flex;
+  align-items: center;
+  gap: 0;
   font-size: 11px;
-  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   line-height: 18px;
+  color: var(--color-text-secondary);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--color-bg-elevated);
+}
+
+.topStripTimeNum {
+  color: inherit;
+}
+
+.topStripTimeSep {
+  color: inherit;
+  opacity: 0.4;
+  margin: 0 1px;
+}
+
+.topStripTimeSec {
+  color: inherit;
+  min-width: 14px;
+  text-align: center;
 }
 
 .topStripLabel {

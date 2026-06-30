@@ -45,6 +45,7 @@ export function RightPanel() {
   const [weather, setWeather] = useState<WeatherContext | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherEnabled, setWeatherEnabled] = useState(false);
+  const [weatherRefreshed, setWeatherRefreshed] = useState(false);
   const session = useSessionStore((st) => st.current);
   const sessionId = session?.id;
   const mood = useUIAtmosphereStore((st) => st.currentMood);
@@ -82,12 +83,16 @@ export function RightPanel() {
   const fetchWeather = async () => {
     if (sidecarStatus !== 'healthy' || weatherLoading || !weatherEnabled) return;
     setWeatherLoading(true);
+    setWeatherRefreshed(false);
     try {
       const res = await fetch(`${SIDECAR_BASE}/context/weather`);
       if (res.ok) {
         const data = await res.json();
         setWeather(data);
         setContextWeather(data);
+        // 显示刷新成功反馈
+        setWeatherRefreshed(true);
+        setTimeout(() => setWeatherRefreshed(false), 2000);
       }
     } catch (e) {
       // 获取天气失败，静默处理
@@ -191,6 +196,9 @@ export function RightPanel() {
                   <div style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{weather.condition}</div>
                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{weather.temperature}°C{weather.city ? ` · ${weather.city}` : ''}</div>
                 </div>
+                {weatherRefreshed && (
+                  <span style={{ fontSize: 11, color: 'var(--color-success)', transition: 'opacity 300ms' }}>已更新</span>
+                )}
                 <button
                   className={s.playerBtn}
                   onClick={fetchWeather}

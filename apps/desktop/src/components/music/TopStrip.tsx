@@ -36,7 +36,9 @@ export function TopStrip() {
     return () => { clearTimeout(timer); document.removeEventListener('mousedown', handleClickOutside); };
   }, [showMoodSelector]);
 
-  const timeStr = time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const hours = time.getHours().toString().padStart(2, '0');
+  const minutes = time.getMinutes().toString().padStart(2, '0');
+  const seconds = time.getSeconds().toString().padStart(2, '0');
   const currentMoodOpt = moodOptions.find(o => o.value === manualState) || moodOptions[0];
 
   const handleMoodChange = async (state: UserManualState, mood: CodingMoodState) => {
@@ -85,7 +87,13 @@ export function TopStrip() {
           </div>
         )}
       </div>
-      <span className={s.topStripTime}>{timeStr}</span>
+      <div className={s.topStripTime}>
+        <span className={s.topStripTimeNum}>{hours}</span>
+        <span className={s.topStripTimeSep}>:</span>
+        <span className={s.topStripTimeNum}>{minutes}</span>
+        <span className={s.topStripTimeSep}>:</span>
+        <span className={s.topStripTimeSec}>{seconds}</span>
+      </div>
     </div>
   );
 }

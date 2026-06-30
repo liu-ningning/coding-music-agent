@@ -60,10 +60,23 @@ export function loadSessionsFromStorage(): void {
         return timeB - timeA;
       });
 
+      // 初始化当前 Session 的活跃计时
+      const currentSession = sessions[0] || null;
+      if (currentSession) {
+        const { activeTimeMap } = useSessionStore.getState();
+        const newMap = { ...activeTimeMap };
+        if (!newMap[currentSession.id]) {
+          newMap[currentSession.id] = { activeDurationMs: 0, activeSince: Date.now() };
+        } else {
+          newMap[currentSession.id] = { ...newMap[currentSession.id], activeSince: Date.now() };
+        }
+        useSessionStore.setState({ activeTimeMap: newMap });
+      }
+
       // 直接设置 recent 列表，保持排序
       useSessionStore.setState({
         recent: sessions,
-        current: sessions[0] || null,  // 默认选中最新的
+        current: currentSession,
       });
 
       debugInfo('session', `加载 ${sessions.length} 个会话`);
