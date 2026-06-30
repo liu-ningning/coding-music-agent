@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '@/stores/agentStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { sendAgentMessage } from '@/clients/agentSSE';
+import { useConsoleShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { ToolCallCard } from './ToolCallCard';
 import { ApprovalDialog } from './ApprovalDialog';
 import { ErrorCard } from '../common/ErrorCard';
@@ -82,6 +83,9 @@ export function AgentConsole() {
   };
 
   const isEmpty = messages.length === 0 && !streaming;
+
+  // 快捷键：Cmd+Enter 或 Enter 发送
+  const consoleKeyDown = useConsoleShortcuts(handleSend);
 
   return (
     <div className={s.console}>
@@ -191,7 +195,15 @@ export function AgentConsole() {
             className={s.consoleInput}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+            onKeyDown={(e) => {
+              // Enter 发送（无修饰键时）
+              if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                handleSend();
+              }
+              // Cmd/Ctrl + Enter 也发送
+              consoleKeyDown(e);
+            }}
             placeholder={sessionId ? '描述你的开发任务...' : '请先创建会话...'}
             disabled={runStatus === 'running' || !sessionId}
           />

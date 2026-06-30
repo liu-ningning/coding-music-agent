@@ -228,6 +228,24 @@ export class NeteaseMusicProvider implements MusicProvider {
     return tracks;
   }
 
+  // 获取歌词
+  async getLyrics(songId: string): Promise<{ lrc: string; tlyric?: string } | null> {
+    try {
+      const api = await getApi();
+      const result = await api.lyric({ id: songId });
+
+      if (result.status === 200 && result.body) {
+        const lrc = result.body.lrc?.lyric || '';
+        const tlyric = result.body.tlyric?.lyric || undefined;
+        return lrc ? { lrc, tlyric } : null;
+      }
+      return null;
+    } catch (e) {
+      log.error(`获取歌词失败: ${e}`);
+      return null;
+    }
+  }
+
   simulateLogin(): void {
     this.authenticated = true;
   }

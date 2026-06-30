@@ -12,7 +12,7 @@ import s from '@/styles/layout.module.css';
 import { SIDECAR_BASE } from '@/config';
 
 export function SettingsDrawer() {
-  const { settingsOpen, closeSettings, reducedMotion, setReducedMotion, volume, setVolume, autoRecommend, setAutoRecommend, showFloatingCard, setShowFloatingCard, showDebug, setShowDebug } = useSettingsStore();
+  const { settingsOpen, closeSettings, reducedMotion, setReducedMotion, volume, setVolume, autoRecommend, setAutoRecommend, showFloatingCard, setShowFloatingCard, showDebug, setShowDebug, atmosphereIntensity, setAtmosphereIntensity } = useSettingsStore();
   const [showConfirm, setShowConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -94,6 +94,32 @@ export function SettingsDrawer() {
                 background: `linear-gradient(to right, var(--color-accent) 0%, var(--color-accent) ${volume}%, var(--color-bg-elevated) ${volume}%, var(--color-bg-elevated) 100%)`,
               }}
             />
+            <div className={s.drawerSettingRow}>
+              <div>
+                <span className={s.drawerSettingLabel}>氛围强度</span>
+                <div className={s.drawerSettingDesc}>控制边缘光和背景动效的强度</div>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {(['low', 'medium', 'high'] as const).map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setAtmosphereIntensity(level)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      border: atmosphereIntensity === level ? '1px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                      background: atmosphereIntensity === level ? 'var(--color-accent)' : 'transparent',
+                      color: atmosphereIntensity === level ? 'white' : 'var(--color-text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 150ms',
+                    }}
+                  >
+                    {level === 'low' ? '弱' : level === 'medium' ? '中' : '强'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className={s.drawerSettingRow}>
               <div>
                 <span className={s.drawerSettingLabel}>自动推荐</span>

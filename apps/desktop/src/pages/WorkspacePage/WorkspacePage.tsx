@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AgentConsole } from '@/components/agent/AgentConsole';
@@ -22,6 +22,7 @@ import { loadSessionsFromStorage, initSessionSync } from '@/clients/sessionClien
 import { loadManualState } from '@/components/common/ManualStateSelector';
 import { audioPlayer } from '@/clients/audioPlayer';
 import { startSidecarLogStream } from '@/utils/debugLogger';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import s from '@/styles/layout.module.css';
 
 const FIRST_LAUNCH_KEY = 'music-coding-first-launch-done';
@@ -30,6 +31,7 @@ export function WorkspacePage() {
   const [showGuide, setShowGuide] = useState(false);
   const [musicReady, setMusicReady] = useState(false);
   const [audioInited, setAudioInited] = useState(false);
+  const [sessionSearchActive, setSessionSearchActive] = useState(false);
   const sessionId = useSessionStore((st) => st.current?.id);
   const showFloatingCard = useSettingsStore((st) => st.showFloatingCard);
   const sidecarStatus = useSidecarStore((st) => st.status);
@@ -83,6 +85,19 @@ export function WorkspacePage() {
     }
   }, [sessionId, sidecarStatus, musicReady]);
 
+  // 全局快捷键
+  const shortcutHandlers = useCallback(() => ({
+    onNewSession: () => {
+      import('@/clients/sessionClient').then(({ createSession }) => {
+        createSession().then(() => fetchRecommendation());
+      });
+    },
+    onToggleSessionSearch: () => {
+      setSessionSearchActive((prev) => !prev);
+    },
+  }), []);
+  useKeyboardShortcuts(shortcutHandlers());
+
   // 用户点击时初始化音频并播放（仅首次）
   const handleClick = useCallback(() => {
     if (!audioInited) {
@@ -104,7 +119,7 @@ export function WorkspacePage() {
       <AmbientLayer />
       <TopBar />
       <div className={s.mainRow}>
-        <Sidebar />
+        <Sidebar sessionSearchActive={sessionSearchActive} onSessionSearchClose={() => setSessionSearchActive(false)} />
         <div className={s.mainContent}>
           <AgentConsole />
         </div>

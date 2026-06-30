@@ -310,6 +310,21 @@ export function createServer(): Express {
     }
   });
 
+  // 获取歌词
+  app.get('/music/lyrics/:trackId', async (req: Request, res: Response) => {
+    try {
+      const { trackId } = req.params;
+      const lyrics = await musicService.getLyrics(trackId);
+      if (lyrics) {
+        res.json(lyrics);
+      } else {
+        res.status(404).json({ error: 'Lyrics not found' });
+      }
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   app.post('/music/feedback', (req: Request, res: Response) => {
     try {
       const { sessionId, recommendationId, action, mood } = req.body as { sessionId: string; recommendationId: string; action: string; mood?: string };

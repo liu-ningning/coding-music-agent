@@ -1,12 +1,38 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMusicStore } from '@/stores/musicStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
 import { fetchRecommendation } from '@/clients/musicClient';
 import { RefreshIcon } from '@/components/common/RefreshIcon';
-import { IconPrevious, IconPlay, IconPause, IconNext, IconTarget, IconDislike, IconMusic, IconNight } from '@/components/common/Icons';
+import { IconPrevious, IconPlay, IconPause, IconNext, IconTarget, IconDislike, IconMusic, IconNight, IconVolume, IconVolumeMute, IconLyrics, IconLyricsOff } from '@/components/common/Icons';
+import { ExpandedPanel } from './ExpandedPanel';
 import s from '@/styles/layout.module.css';
 import { SIDECAR_BASE } from '@/config';
+
+// LRC 歌词行
+interface LrcLine {
+  time: number;
+  text: string;
+}
+
+// 解析 LRC 格式歌词
+function parseLrc(lrc: string): LrcLine[] {
+  const lines: LrcLine[] = [];
+  for (const line of lrc.split('\n')) {
+    const matches = line.match(/\[(\d{2}):(\d{2})\.(\d{2,3})\]/g);
+    if (!matches) continue;
+    const text = line.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim();
+    if (!text) continue;
+    for (const match of matches) {
+      const [, min, sec, ms] = match.match(/\[(\d{2}):(\d{2})\.(\d{2,3})\]/)!;
+      const time = Number(min) * 60 + Number(sec) + Number(ms) / (ms.length === 3 ? 1000 : 100);
+      lines.push({ time, text });
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time);
+}
+
 
 // 格式化时间 mm:ss
 function formatTime(seconds: number): string {
@@ -18,15 +44,27 @@ function formatTime(seconds: number): string {
 
 export function MiniPlayerBar() {
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showVolume, setShowVolume] = useState(false);
+  const [showExpanded, setShowExpanded] = useState(false);
+  const [showLyricsPopup, setShowLyricsPopup] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [lyricLines, setLyricLines] = useState<LrcLine[]>([]);
+  const [currentLyric, setCurrentLyric] = useState<string>('');
+  const [currentLyricIdx, setCurrentLyricIdx] = useState(-1);
   const progressRef = useRef<HTMLDivElement>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
+  const lyricsPopupRef = useRef<HTMLDivElement>(null);
+  const lyricsCurrentRef = useRef<HTMLDivElement>(null);
   const dragTimeRef = useRef(0);
 
   const playback = useMusicStore((st) => st.playback);
   const sessionId = useSessionStore((st) => st.current?.id);
+  const volume = useSettingsStore((st) => st.volume);
+  const setVolume = useSettingsStore((st) => st.setVolume);
 
   const sessionData = useMusicStore((st) => {
     if (!sessionId) return null;
@@ -71,6 +109,92 @@ export function MiniPlayerBar() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showFeedback]);
+
+  // 点击外部关闭音量弹窗
+  useEffect(() => {
+    if (!showVolume) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (volumeRef.current && !volumeRef.current.contains(e.target as Node)) {
+        setShowVolume(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showVolume]);
+
+  // 点击外部关闭歌词弹窗
+  useEffect(() => {
+    if (!showLyricsPopup) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (lyricsPopupRef.current && !lyricsPopupRef.current.contains(e.target as Node)) {
+        setShowLyricsPopup(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showLyricsPopup]);
+
+  // 打开歌词弹窗时滚动到当前行
+  useEffect(() => {
+    if (showLyricsPopup && lyricsCurrentRef.current) {
+      lyricsCurrentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [showLyricsPopup]);
+
+  // 获取歌词
+  useEffect(() => {
+    setLyricLines([]);
+    setCurrentLyric('');
+    if (!track?.providerTrackId) return;
+
+    const fetchLyrics = async () => {
+      try {
+        const res = await fetch(`${SIDECAR_BASE}/music/lyrics/${track.providerTrackId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.lrc) {
+            setLyricLines(parseLrc(data.lrc));
+          }
+        }
+      } catch {}
+    };
+
+    fetchLyrics();
+  }, [track?.providerTrackId]);
+
+  // 定时更新当前歌词
+  useEffect(() => {
+    if (lyricLines.length === 0) return;
+
+    const timer = setInterval(() => {
+      const { currentTime: ct } = audioPlayer.getProgress();
+      // 找到当前时间对应的歌词行索引
+      let idx = -1;
+      for (let i = lyricLines.length - 1; i >= 0; i--) {
+        if (ct >= lyricLines[i].time) { idx = i; break; }
+      }
+      setCurrentLyricIdx(idx);
+      setCurrentLyric(idx >= 0 ? lyricLines[idx].text : '');
+    }, 200);
+
+    return () => clearInterval(timer);
+  }, [lyricLines]);
 
   // 计算进度百分比
   const progressPercent = duration > 0
@@ -193,56 +317,133 @@ export function MiniPlayerBar() {
     setShowFeedback(false);
   };
 
+  // 音量调节
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    setVolume(val);
+    audioPlayer.setVolume(val);
+  }, [setVolume]);
+
+  // 静音/取消静音
+  const handleToggleMute = useCallback(() => {
+    if (volume > 0) {
+      setVolume(0);
+      audioPlayer.setVolume(0);
+    } else {
+      setVolume(30);
+      audioPlayer.setVolume(30);
+    }
+  }, [volume, setVolume]);
+
+  const hasLyrics = lyricLines.length > 0;
+
+  if (showExpanded) return <ExpandedPanel onClose={() => setShowExpanded(false)} />;
+
   return (
     <footer className={s.bottomArea}>
-      {/* 左侧：歌曲信息 */}
-      <div className={s.playerLeft}>
-        <span className={s.playerIcon}><IconMusic size={14} /></span>
-        {track ? (
-          <div className={s.playerInfo}>
-            <div className={s.playerTitle}>{track.title}</div>
-            <div className={s.playerSub}>
-              {track.artists.join(', ')}{track.album && ` · ${track.album}`}
+      <div className={s.bottomAreaMain}>
+        {/* 左侧：歌曲信息 */}
+        <div className={s.playerLeft}>
+          <div className={s.playerWave}>
+            {[5, 9, 4, 8, 5].map((h, i) => (
+              <div
+                key={i}
+                className={`${s.playerWaveBar} ${playing ? s.playerWaveBarPlaying : ''}`}
+                style={{
+                  height: h,
+                  opacity: playing ? 0.9 : 0.5,
+                  animationDelay: `${i * 0.15}s`,
+                }}
+              />
+            ))}
+          </div>
+          {track ? (
+            <div className={s.playerInfo}>
+              <div className={s.playerTitle}>{track.title}</div>
+              <div className={s.playerSub}>
+                {track.artists.join(', ')}{track.album && ` · ${track.album}`}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className={s.playerInfo}>
-            <div className={s.playerSub}>{rec ? rec.atmosphere.label : '点击播放开始体验'}</div>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className={s.playerInfo}>
+              <div className={s.playerSub}>{rec ? rec.atmosphere.label : '点击播放开始体验'}</div>
+            </div>
+          )}
+        </div>
 
-      {/* 中间：进度条 + 控制按钮 */}
-      <div className={s.playerCenter}>
-        <span className={s.playerTime}>{formatTime(isDragging ? dragTimeRef.current : currentTime)}</span>
-        <div
-          ref={progressRef}
-          className={s.playerProgressBar}
-          onClick={handleProgressClick}
-          onMouseDown={handleDragStart}
-        >
-          <div className={s.playerProgressFill} style={{ width: `${progressPercent}%` }} />
+        {/* 中间：进度条 + 控制按钮 */}
+        <div className={s.playerCenter}>
+          <span className={s.playerTime}>{formatTime(isDragging ? dragTimeRef.current : currentTime)}</span>
           <div
-            className={s.playerProgressThumb}
-            style={{ left: `${progressPercent}%` }}
-          />
+            ref={progressRef}
+            className={s.playerProgressBar}
+            onClick={handleProgressClick}
+            onMouseDown={handleDragStart}
+          >
+            <div className={s.playerProgressFill} style={{ width: `${progressPercent}%` }} />
+            <div
+              className={s.playerProgressThumb}
+              style={{ left: `${progressPercent}%` }}
+            />
+          </div>
+          <span className={s.playerTime}>{formatTime(duration)}</span>
+          <div className={s.playerControls}>
+            <button className={s.playerBtn} onClick={handlePrev} disabled={!track} title="上一首/重播">
+              <IconPrevious size={14} />
+            </button>
+            <button className={s.playerBtn} onClick={handlePlayPause} disabled={!track} title={playing ? '暂停' : '播放'}>
+              {playing ? <IconPause size={14} /> : <IconPlay size={14} />}
+            </button>
+            <button className={s.playerBtn} onClick={handleNext} disabled={queue.length === 0} title="下一首">
+              <IconNext size={14} />
+            </button>
+          </div>
         </div>
-        <span className={s.playerTime}>{formatTime(duration)}</span>
-        <div className={s.playerControls}>
-          <button className={s.playerBtn} onClick={handlePrev} disabled={!track} title="上一首/重播">
-            <IconPrevious size={14} />
-          </button>
-          <button className={s.playerBtn} onClick={handlePlayPause} disabled={!track} title={playing ? '暂停' : '播放'}>
-            {playing ? <IconPause size={14} /> : <IconPlay size={14} />}
-          </button>
-          <button className={s.playerBtn} onClick={handleNext} disabled={queue.length === 0} title="下一首">
-            <IconNext size={14} />
-          </button>
-        </div>
-      </div>
 
-      {/* 右侧：操作按钮 */}
-      <div className={s.playerRight}>
+        {/* 右侧：操作按钮 */}
+        <div className={s.playerRight}>
+          {/* 歌词行 */}
+          {showLyrics && hasLyrics && currentLyric && (
+            <div
+              className={s.playerLyricInline}
+              onClick={() => setShowLyricsPopup(!showLyricsPopup)}
+              title="点击展开全部歌词"
+            >
+              {currentLyric}
+            </div>
+          )}
+          {/* 歌词开关 */}
+          <button
+            className={`${s.playerBtn} ${showLyrics ? s.playerBtnActive : ''}`}
+            onClick={() => setShowLyrics(!showLyrics)}
+            title={showLyrics ? '隐藏歌词' : '显示歌词'}
+          >
+            {showLyrics ? <IconLyrics size={14} /> : <IconLyricsOff size={14} />}
+          </button>
+          {/* 音量控制 */}
+          <div className={s.volumeWrap} ref={volumeRef}>
+          <button
+            className={s.playerBtn}
+            onClick={handleToggleMute}
+            onMouseEnter={() => setShowVolume(true)}
+            title={volume > 0 ? `音量 ${volume}%` : '静音'}
+          >
+            {volume > 0 ? <IconVolume size={14} /> : <IconVolumeMute size={14} />}
+          </button>
+          {showVolume && (
+            <div className={s.volumePopup}>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={volume}
+                onChange={handleVolumeChange}
+                className={s.volumeSlider}
+              />
+              <span className={s.volumeValue}>{volume}%</span>
+            </div>
+          )}
+        </div>
         <button className={s.playerBtn} onClick={handleChangeSet} disabled={!sessionId} title="换一组">
           <RefreshIcon size={14} />
         </button>
@@ -268,6 +469,28 @@ export function MiniPlayerBar() {
           </button>
         </div>
       )}
+
+      {/* 歌词弹窗 */}
+      {showLyricsPopup && hasLyrics && (
+        <div className={s.lyricsPopup} ref={lyricsPopupRef}>
+          <div className={s.lyricsPopupHeader}>
+            <span className={s.lyricsPopupTitle}>歌词</span>
+            <button className={s.lyricsPopupClose} onClick={() => setShowLyricsPopup(false)}>✕</button>
+          </div>
+          <div className={s.lyricsPopupContent}>
+            {lyricLines.map((line, i) => (
+              <div
+                key={i}
+                className={`${s.lyricsPopupLine} ${i === currentLyricIdx ? s.lyricsPopupLineActive : ''}`}
+                ref={i === currentLyricIdx ? lyricsCurrentRef : undefined}
+              >
+                {line.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      </div>
     </footer>
   );
 }

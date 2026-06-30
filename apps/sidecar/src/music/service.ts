@@ -208,6 +208,18 @@ export class MusicService {
   }
 
   /**
+   * 获取歌词
+   */
+  async getLyrics(trackId: string): Promise<{ lrc: string; tlyric?: string } | null> {
+    try {
+      if (!this.provider || !('getLyrics' in this.provider)) return null;
+      return await (this.provider as any).getLyrics(trackId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * 计算推荐结果的多样性分数
    */
   private calculateDiversityScore(tracks: MusicTrack[]): DiversityScore {

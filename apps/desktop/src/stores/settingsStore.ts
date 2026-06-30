@@ -2,12 +2,15 @@ import { create } from 'zustand';
 
 const STORAGE_KEY = 'music-coding-settings';
 
+export type AtmosphereIntensity = 'low' | 'medium' | 'high';
+
 interface SettingsData {
   reducedMotion: boolean;
   volume: number;
   autoRecommend: boolean;
   showFloatingCard: boolean;
   showDebug: boolean;
+  atmosphereIntensity: AtmosphereIntensity;
 }
 
 interface SettingsStore extends SettingsData {
@@ -21,6 +24,7 @@ interface SettingsStore extends SettingsData {
   setAutoRecommend: (value: boolean) => void;
   setShowFloatingCard: (value: boolean) => void;
   setShowDebug: (value: boolean) => void;
+  setAtmosphereIntensity: (value: AtmosphereIntensity) => void;
   toggleSettings: () => void;
   togglePermissions: () => void;
   openSettings: () => void;
@@ -53,6 +57,7 @@ const defaults: SettingsData = {
   autoRecommend: true,
   showFloatingCard: true,
   showDebug: false,
+  atmosphereIntensity: 'medium',
 };
 
 export const useSettingsStore = create<SettingsStore>((set, get) => {
@@ -72,32 +77,32 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
 
     setReducedMotion: (value) => {
       set({ reducedMotion: value });
-      const { volume, autoRecommend, showFloatingCard, showDebug } = get();
-      saveToStorage({ reducedMotion: value, volume, autoRecommend, showFloatingCard, showDebug });
+      saveToStorage({ ...get(), reducedMotion: value });
     },
 
     setVolume: (value) => {
       set({ volume: value });
-      const { reducedMotion, autoRecommend, showFloatingCard, showDebug } = get();
-      saveToStorage({ reducedMotion, volume: value, autoRecommend, showFloatingCard, showDebug });
+      saveToStorage({ ...get(), volume: value });
     },
 
     setAutoRecommend: (value) => {
       set({ autoRecommend: value });
-      const { reducedMotion, volume, showFloatingCard, showDebug } = get();
-      saveToStorage({ reducedMotion, volume, autoRecommend: value, showFloatingCard, showDebug });
+      saveToStorage({ ...get(), autoRecommend: value });
     },
 
     setShowFloatingCard: (value) => {
       set({ showFloatingCard: value });
-      const { reducedMotion, volume, autoRecommend, showDebug } = get();
-      saveToStorage({ reducedMotion, volume, autoRecommend, showFloatingCard: value, showDebug });
+      saveToStorage({ ...get(), showFloatingCard: value });
     },
 
     setShowDebug: (value) => {
       set({ showDebug: value });
-      const { reducedMotion, volume, autoRecommend, showFloatingCard } = get();
-      saveToStorage({ reducedMotion, volume, autoRecommend, showFloatingCard, showDebug: value });
+      saveToStorage({ ...get(), showDebug: value });
+    },
+
+    setAtmosphereIntensity: (value) => {
+      set({ atmosphereIntensity: value });
+      saveToStorage({ ...get(), atmosphereIntensity: value });
     },
 
     toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen, permissionsOpen: false })),

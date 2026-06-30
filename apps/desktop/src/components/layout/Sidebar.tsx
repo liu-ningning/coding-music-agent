@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAgentStore } from '@/stores/agentStore';
 import { useMusicStore } from '@/stores/musicStore';
@@ -8,7 +8,7 @@ import { createSession } from '@/clients/sessionClient';
 import { fetchRecommendation, autoPlayRecommendation } from '@/clients/musicClient';
 import { debugInfo, debugWarn } from '@/utils/debugLogger';
 import logoSvg from '@/assets/logo.svg';
-import { IconChat, IconFolder, IconSettings, IconLock } from '@/components/common/Icons';
+import { IconChat, IconFolder, IconSettings, IconLock, IconClose, IconCheck } from '@/components/common/Icons';
 import s from '@/styles/layout.module.css';
 
 // 检测是否在 Tauri 环境中
@@ -23,11 +23,19 @@ interface MenuState {
   sessionId: string;
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  sessionSearchActive?: boolean;
+  onSessionSearchClose?: () => void;
+}
+
+export function Sidebar({ sessionSearchActive, onSessionSearchClose }: SidebarProps) {
   const current = useSessionStore((st) => st.current);
   const recent = useSessionStore((st) => st.recent);
+  const pinnedIds = useSessionStore((st) => st.pinnedIds);
   const setCurrent = useSessionStore((st) => st.setCurrent);
   const removeSession = useSessionStore((st) => st.removeSession);
+  const updateSession = useSessionStore((st) => st.updateSession);
+  const togglePin = useSessionStore((st) => st.togglePin);
   const sidecarStatus = useSidecarStore((st) => st.status);
   const toggleSettings = useSettingsStore((st) => st.toggleSettings);
   const togglePermissions = useSettingsStore((st) => st.togglePermissions);
@@ -36,6 +44,50 @@ export function Sidebar() {
   const [menu, setMenu] = useState<MenuState>({ visible: false, x: 0, y: 0, sessionId: '' });
   // 删除确认弹窗
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // 重命名状态
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  // 搜索框激活时自动聚焦
+  useEffect(() => {
+    if (sessionSearchActive) {
+      setSearchQuery('');
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [sessionSearchActive]);
+
+  // 过滤后的 Session 列表（置顶优先）
+  const filteredRecent = (() => {
+    const list = searchQuery.trim()
+      ? recent.filter((ses) => {
+          const q = searchQuery.toLowerCase();
+          return ses.title.toLowerCase().includes(q) || ses.id.toLowerCase().includes(q);
+        })
+      : recent;
+    // 置顶的排在前面
+    return [...list].sort((a, b) => {
+      const aPinned = pinnedIds.has(a.id) ? 0 : 1;
+      const bPinned = pinnedIds.has(b.id) ? 0 : 1;
+      return aPinned - bPinned;
+    });
+  })();
+
+  // 双击重命名
+  const handleDoubleClick = useCallback((sessionId: string, currentTitle: string) => {
+    setEditingId(sessionId);
+    setEditValue(currentTitle);
+  }, []);
+
+  const handleRenameConfirm = useCallback(() => {
+    if (editingId && editValue.trim()) {
+      updateSession(editingId, { title: editValue.trim() });
+    }
+    setEditingId(null);
+    setEditValue('');
+  }, [editingId, editValue, updateSession]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, sessionId: string) => {
     e.preventDefault();
@@ -129,18 +181,66 @@ export function Sidebar() {
         )}
       </div>
       <div className={s.sidebarList}>
-        <div className={s.sidebarLabel}>Recent</div>
-        {recent.length === 0
-          ? <div className={s.sidebarLabel}>暂无 Session</div>
-          : recent.map((ses) => (
+        {/* 搜索框（Cmd+K 激活时显示） */}
+        {sessionSearchActive && (
+          <div className={s.sidebarSearchWrap}>
+            <input
+              ref={searchInputRef}
+              className={s.sidebarSearchInput}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索 Session..."
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('');
+                  onSessionSearchClose?.();
+                }
+              }}
+            />
+            <button
+              className={s.sidebarSearchClose}
+              onClick={() => { setSearchQuery(''); onSessionSearchClose?.(); }}
+            >
+              <IconClose size={12} />
+            </button>
+          </div>
+        )}
+        <div className={s.sidebarLabel}>
+          {sessionSearchActive ? `搜索结果 (${filteredRecent.length})` : 'Recent'}
+        </div>
+        {filteredRecent.length === 0
+          ? <div className={s.sidebarLabel}>{searchQuery ? '无匹配结果' : '暂无 Session'}</div>
+          : filteredRecent.map((ses) => (
             <div
               key={ses.id}
               className={`${s.sidebarItem} ${current?.id === ses.id ? s.sidebarItemActive : ''}`}
               onClick={() => setCurrent(ses)}
               onContextMenu={(e) => handleContextMenu(e, ses.id)}
+              onDoubleClick={() => handleDoubleClick(ses.id, ses.title)}
             >
-              <div className={s.sidebarItemTitle}>{ses.title}</div>
-              <div className={s.sidebarItemId}>{ses.id}</div>
+              <div className={s.sidebarItemTitle}>
+                {pinnedIds.has(ses.id) && <span className={s.sidebarPinIcon}>📌</span>}
+                {editingId === ses.id ? (
+                  <input
+                    className={s.sidebarRenameInput}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={handleRenameConfirm}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameConfirm();
+                      if (e.key === 'Escape') { setEditingId(null); setEditValue(''); }
+                    }}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  ses.title
+                )}
+              </div>
+              <div className={s.sidebarItemMeta}>
+                <span className={s.sidebarItemId}>{ses.id}</span>
+                <SessionDuration startedAt={ses.startedAt} />
+              </div>
               {ses.projectPath && (
                 <div className={s.sidebarItemPath} title={ses.projectPath}>
                   <IconFolder size={10} /> {ses.projectPath}
@@ -182,6 +282,15 @@ export function Sidebar() {
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          <MenuItem label={pinnedIds.has(menu.sessionId) ? '取消置顶' : '置顶'} onClick={() => {
+            togglePin(menu.sessionId);
+            closeMenu();
+          }} />
+          <MenuItem label="重命名" onClick={() => {
+            const ses = recent.find(s => s.id === menu.sessionId);
+            if (ses) handleDoubleClick(ses.id, ses.title);
+            closeMenu();
+          }} />
           <MenuItem label="清空消息" onClick={handleClearMessages} />
           <MenuItem label="删除会话" danger onClick={handleDelete} />
         </div>
@@ -216,6 +325,37 @@ export function Sidebar() {
         </div>
       )}
     </aside>
+  );
+}
+
+// Session 时长显示组件
+function SessionDuration({ startedAt }: { startedAt: string }) {
+  const [duration, setDuration] = useState('');
+
+  useEffect(() => {
+    const update = () => {
+      const diff = Date.now() - new Date(startedAt).getTime();
+      const minutes = Math.floor(diff / 60000);
+      if (minutes < 1) setDuration('刚刚');
+      else if (minutes < 60) setDuration(`${minutes}min`);
+      else {
+        const hours = Math.floor(minutes / 60);
+        const remainMin = minutes % 60;
+        setDuration(remainMin > 0 ? `${hours}h ${remainMin}min` : `${hours}h`);
+      }
+    };
+    update();
+    const timer = setInterval(update, 60000); // 每分钟更新
+    return () => clearInterval(timer);
+  }, [startedAt]);
+
+  const diff = Date.now() - new Date(startedAt).getTime();
+  const isLongSession = diff > 2 * 60 * 60 * 1000; // 超过 2 小时
+
+  return (
+    <span className={`${s.sidebarItemDuration} ${isLongSession ? s.sidebarItemDurationLong : ''}`}>
+      {duration}
+    </span>
   );
 }
 

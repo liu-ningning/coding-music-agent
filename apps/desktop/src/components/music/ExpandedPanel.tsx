@@ -254,34 +254,38 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {/* 队列 - 唯一可滚动区域 */}
-        {queue.length > 0 && (
-          <div className={s.expandedScrollSection}>
-            <div className={s.expandedSectionTitle}>队列 ({queue.length} 首)</div>
-            <div className={s.expandedQueueList}>
-              {queue.map((t, i) => (
-                <div
-                  key={t.id}
-                  className={s.expandedQueueItem}
-                  style={{
-                    color: i === idx ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                    background: i === idx ? 'var(--color-bg-elevated)' : 'transparent',
-                  }}
-                  onClick={() => {
-                    if (sessionId) {
-                      useMusicStore.getState().setCurrentIndex(sessionId, i);
-                    }
-                    audioPlayer.playTrack(t);
-                  }}
-                >
-                  <span className={`${s.expandedQueueIndex} ${i === idx ? s.expandedQueueActive : ''}`}>{i === idx ? <IconPlay size={10} /> : i + 1}</span>
-                  <span className={`${s.expandedQueueTitle} ${i === idx ? s.expandedQueueActive : ''}`}>{t.title}</span>
-                  <span style={{ fontSize: 10, marginLeft: 8, color: 'var(--color-text-muted)' }}>{t.artists[0]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* 队列 - 可滚动区域 */}
+        <div className={s.expandedScrollSection}>
+          {queue.length > 0 ? (
+            <>
+              <div className={s.expandedSectionTitle}>队列 ({queue.length})</div>
+              <div className={s.expandedQueueList}>
+                {queue.map((t, i) => (
+                  <div
+                    key={t.id}
+                    className={s.expandedQueueItem}
+                    style={{
+                      color: i === idx ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                      background: i === idx ? 'var(--color-bg-elevated)' : 'transparent',
+                    }}
+                    onClick={() => {
+                      if (sessionId) {
+                        useMusicStore.getState().setCurrentIndex(sessionId, i);
+                      }
+                      audioPlayer.playTrack(t);
+                    }}
+                  >
+                    <span className={`${s.expandedQueueIndex} ${i === idx ? s.expandedQueueActive : ''}`}>{i === idx ? <IconPlay size={10} /> : i + 1}</span>
+                    <span className={`${s.expandedQueueTitle} ${i === idx ? s.expandedQueueActive : ''}`}>{t.title}</span>
+                    <span style={{ fontSize: 10, marginLeft: 8, color: 'var(--color-text-muted)' }}>{t.artists[0]}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 12, padding: 20 }}>暂无队列</div>
+          )}
+        </div>
 
         {/* 反馈 - 固定 */}
         {rec && sessionId && (

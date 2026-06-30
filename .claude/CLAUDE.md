@@ -116,7 +116,7 @@ log.error('错误信息');
 - 用户说"开始 X.X" → 标记任务为 `[@]`，开始开发
 - 用户说"完成 X.X" → 标记任务为 `[x]`，更新进度
 - 用户说"继续开发" → 找下一个 `[ ]` 任务，开始实现
-- 详细协作指南见 [开发计划](./docs/04-development-plan.md) 或 [其他开发计划](./docs/06-daily-summary.md) 的"Claude 开发协作指南"章节
+- 详细协作指南见 [开发计划](./docs/04-development-plan.md) 和 [其他开发计划](./docs/06-lightweight-iterations.md) 的"Claude 开发协作指南"章节
 
 ## 详细文档
 
