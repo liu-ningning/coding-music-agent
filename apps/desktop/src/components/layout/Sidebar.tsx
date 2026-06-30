@@ -239,7 +239,7 @@ export function Sidebar({ sessionSearchActive, onSessionSearchClose }: SidebarPr
               </div>
               <div className={s.sidebarItemMeta}>
                 <span className={s.sidebarItemId}>{ses.id}</span>
-                <SessionDuration startedAt={ses.startedAt} />
+                <SessionDuration sessionId={ses.id} />
               </div>
               {ses.projectPath && (
                 <div className={s.sidebarItemPath} title={ses.projectPath}>
@@ -328,14 +328,15 @@ export function Sidebar({ sessionSearchActive, onSessionSearchClose }: SidebarPr
   );
 }
 
-// Session 时长显示组件
-function SessionDuration({ startedAt }: { startedAt: string }) {
+// Session 时长显示组件（基于实际活跃时间）
+function SessionDuration({ sessionId }: { sessionId: string }) {
   const [duration, setDuration] = useState('');
+  const getActiveDuration = useSessionStore((st) => st.getActiveDuration);
 
   useEffect(() => {
     const update = () => {
-      const diff = Date.now() - new Date(startedAt).getTime();
-      const minutes = Math.floor(diff / 60000);
+      const ms = getActiveDuration(sessionId);
+      const minutes = Math.floor(ms / 60000);
       if (minutes < 1) setDuration('刚刚');
       else if (minutes < 60) setDuration(`${minutes}min`);
       else {
@@ -345,12 +346,12 @@ function SessionDuration({ startedAt }: { startedAt: string }) {
       }
     };
     update();
-    const timer = setInterval(update, 60000); // 每分钟更新
+    const timer = setInterval(update, 10000); // 每 10 秒更新
     return () => clearInterval(timer);
-  }, [startedAt]);
+  }, [sessionId, getActiveDuration]);
 
-  const diff = Date.now() - new Date(startedAt).getTime();
-  const isLongSession = diff > 2 * 60 * 60 * 1000; // 超过 2 小时
+  const ms = getActiveDuration(sessionId);
+  const isLongSession = ms > 2 * 60 * 60 * 1000; // 超过 2 小时
 
   return (
     <span className={`${s.sidebarItemDuration} ${isLongSession ? s.sidebarItemDurationLong : ''}`}>

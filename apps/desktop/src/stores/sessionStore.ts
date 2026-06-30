@@ -2,11 +2,19 @@ import { create } from 'zustand';
 import type { CodingSession } from '@music-coding/shared-types';
 
 const PINNED_KEY = 'music-coding-pinned-sessions';
+const ACTIVE_TIME_KEY = 'music-coding-active-time';
+
+// 每个 Session 的活跃时间数据
+interface ActiveTimeData {
+  activeDurationMs: number;  // 累计活跃时长（毫秒）
+  activeSince: number | null; // 当前活跃开始时间戳，null 表示未激活
+}
 
 interface SessionStore {
   current: CodingSession | null;
   recent: CodingSession[];
   pinnedIds: Set<string>;
+  activeTimeMap: Record<string, ActiveTimeData>;
   // 设置当前 Session（同时同步到 agentStore 和 musicStore）
   setCurrent: (session: CodingSession) => void;
   // 设置活跃 Session ID（同步到其他 stores）
@@ -15,6 +23,8 @@ interface SessionStore {
   removeSession: (id: string) => void;
   updateSession: (id: string, patch: Partial<CodingSession>) => void;
   togglePin: (id: string) => void;
+  // 获取 Session 的活跃时长（毫秒）
+  getActiveDuration: (sessionId: string) => number;
 }
 
 // 从 localStorage 加载置顶 Session
@@ -33,32 +43,108 @@ function savePinnedToStorage(ids: Set<string>): void {
   } catch {}
 }
 
+// 从 localStorage 加载活跃时间数据
+function loadActiveTimeFromStorage(): Record<string, ActiveTimeData> {
+  try {
+    const stored = localStorage.getItem(ACTIVE_TIME_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return {};
+}
+
+// 保存活跃时间数据到 localStorage
+function saveActiveTimeToStorage(data: Record<string, ActiveTimeData>): void {
+  try {
+    // 保存时清除 activeSince（持久化只保留累计时长）
+    const toSave: Record<string, ActiveTimeData> = {};
+    for (const [id, val] of Object.entries(data)) {
+      toSave[id] = { activeDurationMs: val.activeDurationMs, activeSince: null };
+    }
+    localStorage.setItem(ACTIVE_TIME_KEY, JSON.stringify(toSave));
+  } catch {}
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   current: null,
   recent: [],
   pinnedIds: loadPinnedFromStorage(),
+  activeTimeMap: loadActiveTimeFromStorage(),
 
   setCurrent: (session) => {
-    set({ current: session });
-    // 同步到其他 stores
+    const { current, activeTimeMap } = get();
+    const now = Date.now();
+    const newMap = { ...activeTimeMap };
+
+    // 旧 Session 停止计时
+    if (current && current.id !== session.id && newMap[current.id]?.activeSince) {
+      newMap[current.id] = {
+        activeDurationMs: newMap[current.id].activeDurationMs + (now - newMap[current.id].activeSince!),
+        activeSince: null,
+      };
+    }
+
+    // 新 Session 开始计时
+    if (!newMap[session.id]) {
+      newMap[session.id] = { activeDurationMs: 0, activeSince: now };
+    } else {
+      newMap[session.id] = { ...newMap[session.id], activeSince: now };
+    }
+
+    set({ current: session, activeTimeMap: newMap });
+    saveActiveTimeToStorage(newMap);
     syncToOtherStores(session.id);
   },
 
   setActiveSession: (sessionId) => {
-    const { recent } = get();
+    const { recent, current, activeTimeMap } = get();
     const session = recent.find(s => s.id === sessionId);
     if (session) {
-      set({ current: session });
+      const now = Date.now();
+      const newMap = { ...activeTimeMap };
+
+      // 旧 Session 停止计时
+      if (current && current.id !== sessionId && newMap[current.id]?.activeSince) {
+        newMap[current.id] = {
+          activeDurationMs: newMap[current.id].activeDurationMs + (now - newMap[current.id].activeSince!),
+          activeSince: null,
+        };
+      }
+
+      // 新 Session 开始计时
+      if (!newMap[sessionId]) {
+        newMap[sessionId] = { activeDurationMs: 0, activeSince: now };
+      } else {
+        newMap[sessionId] = { ...newMap[sessionId], activeSince: now };
+      }
+
+      set({ current: session, activeTimeMap: newMap });
+      saveActiveTimeToStorage(newMap);
       syncToOtherStores(sessionId);
     }
   },
 
   addSession: (session) => {
+    const { current, activeTimeMap } = get();
+    const now = Date.now();
+    const newMap = { ...activeTimeMap };
+
+    // 旧 Session 停止计时
+    if (current && current.id !== session.id && newMap[current.id]?.activeSince) {
+      newMap[current.id] = {
+        activeDurationMs: newMap[current.id].activeDurationMs + (now - newMap[current.id].activeSince!),
+        activeSince: null,
+      };
+    }
+
+    // 新 Session 开始计时
+    newMap[session.id] = { activeDurationMs: 0, activeSince: now };
+
     set((state) => ({
       current: session,
       recent: [session, ...state.recent.filter((s) => s.id !== session.id)],
+      activeTimeMap: newMap,
     }));
-    // 同步到其他 stores
+    saveActiveTimeToStorage(newMap);
     syncToOtherStores(session.id);
   },
 
@@ -101,6 +187,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       savePinnedToStorage(newPinned);
       return { pinnedIds: newPinned };
     });
+  },
+
+  getActiveDuration: (sessionId) => {
+    const { activeTimeMap } = get();
+    const data = activeTimeMap[sessionId];
+    if (!data) return 0;
+    const base = data.activeDurationMs;
+    const current = data.activeSince ? Date.now() - data.activeSince : 0;
+    return base + current;
   },
 }));
 
