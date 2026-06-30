@@ -1126,7 +1126,7 @@
   height: 40px;
   border-radius: 50%;
   border: 1px solid var(--color-border-subtle);
-  background: rgba(26,26,26,0.9);
+  background: var(--color-bg-panel);
   backdrop-filter: blur(12px);
   cursor: pointer;
   transition: transform 150ms, box-shadow 150ms;
@@ -1380,10 +1380,10 @@
   gap: 0;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  line-height: 18px;
-  color: var(--color-text-secondary);
-  padding: 2px 8px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 9999px;
+  color: var(--color-text-secondary);
   background: var(--color-bg-elevated);
 }
 
@@ -1437,6 +1437,23 @@
   color: var(--color-text-muted);
 }
 
+.topStripThemeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  transition: all 150ms;
+  cursor: pointer;
+}
+.topStripThemeBtn:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--color-text-primary);
+}
+
 .topStripMoodWrap {
   position: relative;
 }
@@ -1445,7 +1462,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 9999px;
   background: var(--color-bg-elevated);
   color: var(--color-text-secondary);

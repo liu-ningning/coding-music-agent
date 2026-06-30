@@ -56,8 +56,10 @@ export function WorkspacePage() {
     loadManualState();
 
     // 应用存储的音量设置
-    const { volume } = useSettingsStore.getState();
+    const { volume, theme } = useSettingsStore.getState();
     audioPlayer.setVolume(volume);
+    // 应用主题
+    document.documentElement.setAttribute('data-theme', theme);
   }, []);
   useSidecarHealth();
 

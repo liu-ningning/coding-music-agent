@@ -3,6 +3,7 @@ import { create } from 'zustand';
 const STORAGE_KEY = 'music-coding-settings';
 
 export type AtmosphereIntensity = 'low' | 'medium' | 'high';
+export type ThemeMode = 'dark' | 'light';
 
 interface SettingsData {
   reducedMotion: boolean;
@@ -11,6 +12,7 @@ interface SettingsData {
   showFloatingCard: boolean;
   showDebug: boolean;
   atmosphereIntensity: AtmosphereIntensity;
+  theme: ThemeMode;
 }
 
 interface SettingsStore extends SettingsData {
@@ -25,6 +27,7 @@ interface SettingsStore extends SettingsData {
   setShowFloatingCard: (value: boolean) => void;
   setShowDebug: (value: boolean) => void;
   setAtmosphereIntensity: (value: AtmosphereIntensity) => void;
+  setTheme: (value: ThemeMode) => void;
   toggleSettings: () => void;
   togglePermissions: () => void;
   openSettings: () => void;
@@ -58,6 +61,7 @@ const defaults: SettingsData = {
   showFloatingCard: true,
   showDebug: false,
   atmosphereIntensity: 'medium',
+  theme: 'dark',
 };
 
 export const useSettingsStore = create<SettingsStore>((set, get) => {
@@ -103,6 +107,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
     setAtmosphereIntensity: (value) => {
       set({ atmosphereIntensity: value });
       saveToStorage({ ...get(), atmosphereIntensity: value });
+    },
+
+    setTheme: (value) => {
+      set({ theme: value });
+      saveToStorage({ ...get(), theme: value });
+      // 应用主题到 DOM
+      document.documentElement.setAttribute('data-theme', value);
     },
 
     toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen, permissionsOpen: false })),

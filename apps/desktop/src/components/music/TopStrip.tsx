@@ -5,6 +5,8 @@ import { useContextStore } from '@/stores/contextStore';
 import { useUIAtmosphereStore } from '@/stores/uiAtmosphereStore';
 import { fetchRecommendation, autoPlayRecommendation } from '@/clients/musicClient';
 import { moodOptions } from '@/config/moodOptions';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { IconSun, IconMoon } from '@/components/common/Icons';
 import { SIDECAR_BASE } from '@/config';
 import s from '@/styles/layout.module.css';
 
@@ -17,6 +19,8 @@ export function TopStrip() {
   const sessionId = useSessionStore((st) => st.current?.id);
   const manualState = useContextStore((st) => st.context.manualState);
   const setManualState = useContextStore((st) => st.setManualState);
+  const theme = useSettingsStore((st) => st.theme);
+  const setTheme = useSettingsStore((st) => st.setTheme);
 
   // 实时时钟，每秒更新
   useEffect(() => {
@@ -59,6 +63,14 @@ export function TopStrip() {
 
   return (
     <div className={s.topStrip}>
+      {/* 主题切换 */}
+      <button
+        className={s.topStripThemeBtn}
+        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        title={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
+      >
+        {theme === 'dark' ? <IconSun size={12} /> : <IconMoon size={12} />}
+      </button>
       {/* 快捷状态切换 */}
       <div className={s.topStripMoodWrap} ref={moodRef}>
         <button
