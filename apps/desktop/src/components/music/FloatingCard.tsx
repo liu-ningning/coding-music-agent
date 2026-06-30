@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useMusicStore } from '@/stores/musicStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { audioPlayer } from '@/clients/audioPlayer';
+import { WaveBars } from '@/components/common/WaveBars';
 import { ExpandedPanel } from './ExpandedPanel';
 import s from '@/styles/layout.module.css';
 
@@ -88,20 +89,7 @@ export function FloatingCard() {
       onClick={handleClick}
       title={track ? `${track.title} - ${track.artists.join(', ')}` : label}
     >
-      {/* 音乐动画图标 */}
-      <div className={s.floatingBtnWave}>
-        {[6, 10, 4, 8, 6].map((h, i) => (
-          <div
-            key={i}
-            className={`${s.floatingBtnWaveBar} ${playing ? s.floatingBtnWaveBarPlaying : ''}`}
-            style={{
-              height: h,
-              opacity: playing ? 0.9 : 0.5,
-              animationDelay: `${i * 0.15}s`,
-            }}
-          />
-        ))}
-      </div>
+      <WaveBars playing={playing} heights={[6, 10, 4, 8, 6]} />
     </div>
   );
 }

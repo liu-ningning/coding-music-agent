@@ -365,6 +365,23 @@
   color: var(--color-text-secondary);
 }
 
+/* ── WaveBars ── */
+.waveBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.waveBarsBar {
+  transition: height 300ms;
+}
+
+.waveBarsBarPlaying {
+  animation: waveBounce 1.2s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
 /* ── BottomArea / MiniPlayer ── */
 .bottomArea {
   display: flex;
@@ -393,27 +410,6 @@
 }
 
 .playerIcon { color: var(--color-text-muted); font-size: 14px; }
-
-.playerWave {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 20px;
-  width: 24px;
-  flex-shrink: 0;
-}
-
-.playerWaveBar {
-  width: 3.5px;
-  border-radius: 2px;
-  background: var(--color-accent);
-  transition: height 300ms;
-}
-
-.playerWaveBarPlaying {
-  animation: waveBounce 1.2s ease-in-out infinite;
-  transform-origin: bottom;
-}
 
 .playerInfo { min-width: 0; flex: 1; }
 

@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
 import { fetchRecommendation } from '@/clients/musicClient';
 import { RefreshIcon } from '@/components/common/RefreshIcon';
+import { WaveBars } from '@/components/common/WaveBars';
 import { IconPrevious, IconPlay, IconPause, IconNext, IconTarget, IconDislike, IconMusic, IconNight, IconVolume, IconVolumeMute, IconLyrics, IconLyricsOff } from '@/components/common/Icons';
 import { ExpandedPanel } from './ExpandedPanel';
 import s from '@/styles/layout.module.css';
@@ -344,19 +345,7 @@ export function MiniPlayerBar() {
       <div className={s.bottomAreaMain}>
         {/* 左侧：歌曲信息 */}
         <div className={s.playerLeft}>
-          <div className={s.playerWave}>
-            {[5, 9, 4, 8, 5].map((h, i) => (
-              <div
-                key={i}
-                className={`${s.playerWaveBar} ${playing ? s.playerWaveBarPlaying : ''}`}
-                style={{
-                  height: h,
-                  opacity: playing ? 0.9 : 0.5,
-                  animationDelay: `${i * 0.15}s`,
-                }}
-              />
-            ))}
-          </div>
+          <WaveBars playing={playing} />
           {track ? (
             <div className={s.playerInfo}>
               <div className={s.playerTitle}>{track.title}</div>
