@@ -155,3 +155,50 @@ export async function refreshRecommendation(): Promise<void> {
     await audioPlayer.playTrack(rec.tracks[0]);
   }
 }
+
+// ── 网易云二维码登录 ──
+
+/**
+ * 发起二维码登录
+ * 返回 key 和 base64 格式的二维码图片
+ */
+export async function startQrAuth(): Promise<{ key: string; qrimg: string }> {
+  const res = await fetch(`${SIDECAR_BASE}/music/auth/qr/create`);
+  if (!res.ok) {
+    throw new Error(`发起二维码登录失败: ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * 轮询二维码扫码状态
+ * code: 800=过期, 801=等待扫码, 802=已扫码待确认, 803=登录成功
+ */
+export async function checkQrAuth(key: string): Promise<{ code: number; message: string }> {
+  const res = await fetch(`${SIDECAR_BASE}/music/auth/qr/check?key=${encodeURIComponent(key)}`);
+  if (!res.ok) {
+    throw new Error(`检查二维码状态失败: ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * 退出网易云登录
+ */
+export async function logoutMusic(): Promise<void> {
+  const res = await fetch(`${SIDECAR_BASE}/music/auth/logout`, { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`退出登录失败: ${res.status}`);
+  }
+}
+
+/**
+ * 获取网易云登录状态
+ */
+export async function getMusicAuthStatus(): Promise<{ connected: boolean; userId?: string; nickname?: string; avatar?: string; signature?: string }> {
+  const res = await fetch(`${SIDECAR_BASE}/music/status`);
+  if (!res.ok) {
+    throw new Error(`获取登录状态失败: ${res.status}`);
+  }
+  return res.json();
+}

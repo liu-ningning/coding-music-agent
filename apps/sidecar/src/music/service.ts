@@ -64,6 +64,50 @@ export class MusicService {
     return result;
   }
 
+  /**
+   * 生成二维码登录凭证
+   * 返回 key 和 base64 格式的二维码图片
+   */
+  async startQrAuth(): Promise<{ key: string; qrimg: string }> {
+    return this.provider.createQrCode();
+  }
+
+  /**
+   * 轮询二维码扫码状态
+   * code: 800=过期, 801=等待扫码, 802=已扫码待确认, 803=登录成功
+   */
+  async checkQrAuth(key: string): Promise<{ code: number; message: string }> {
+    const result = await this.provider.checkQrStatus(key);
+
+    // 将 code 转换为用户友好的消息
+    let message = '';
+    switch (result.code) {
+      case 800:
+        message = '二维码已过期，请刷新';
+        break;
+      case 801:
+        message = '等待扫码';
+        break;
+      case 802:
+        message = '已扫码，请在手机上确认';
+        break;
+      case 803:
+        message = '登录成功';
+        break;
+      default:
+        message = '未知状态';
+    }
+
+    return { code: result.code, message };
+  }
+
+  /**
+   * 退出登录
+   */
+  async logout(): Promise<void> {
+    await this.provider.logout();
+  }
+
   async recommend(sessionId: string, mood: CodingMoodState, refresh: boolean = false, preferences: string[] = [], playedTrackIds: string[] = []): Promise<MusicRecommendation> {
     let tracks: MusicTrack[] = [];
     let source = 'netease';

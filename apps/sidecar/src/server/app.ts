@@ -233,6 +233,40 @@ export function createServer(): Express {
     }
   });
 
+  // ── 网易云二维码登录 API ──
+
+  app.get('/music/auth/qr/create', async (_req: Request, res: Response) => {
+    try {
+      const result = await musicService.startQrAuth();
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.get('/music/auth/qr/check', async (req: Request, res: Response) => {
+    try {
+      const { key } = req.query as { key?: string };
+      if (!key) {
+        res.status(400).json({ error: 'key is required' });
+        return;
+      }
+      const result = await musicService.checkQrAuth(key);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.post('/music/auth/logout', async (_req: Request, res: Response) => {
+    try {
+      await musicService.logout();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   app.post('/music/recommend', async (req: Request, res: Response) => {
     try {
       const { sessionId, mood, refresh, preferences, playedTrackIds } = req.body as {

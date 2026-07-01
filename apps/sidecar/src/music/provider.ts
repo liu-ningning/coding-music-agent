@@ -5,6 +5,8 @@ export interface MusicAuthStatus {
   connected: boolean;
   userId?: string;
   nickname?: string;
+  avatar?: string;
+  signature?: string;
   expiresAt?: string;
 }
 

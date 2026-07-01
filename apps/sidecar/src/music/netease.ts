@@ -7,6 +7,9 @@ import type {
   CreatePlaylistInput,
 } from './provider';
 import { randomUUID } from 'crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
+import { join, dirname } from 'path';
+import { homedir } from 'os';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('netease');
@@ -34,16 +37,81 @@ async function getApi(retries = 3): Promise<any> {
   throw new Error('NeteaseCloudMusicApi not available');
 }
 
+// Cookie 持久化存储路径
+const COOKIE_DIR = join(homedir(), '.coding-music-agent');
+const COOKIE_FILE = join(COOKIE_DIR, 'netease-cookie.json');
+
+// Cookie 存储结构
+interface StoredCookie {
+  cookie: string;
+  userId: string;
+  nickname: string;
+  avatar?: string;
+  signature?: string;
+  savedAt: string;
+}
+
+// 读取已保存的 cookie
+function loadStoredCookie(): StoredCookie | null {
+  try {
+    if (!existsSync(COOKIE_FILE)) return null;
+    const data = readFileSync(COOKIE_FILE, 'utf-8');
+    return JSON.parse(data) as StoredCookie;
+  } catch {
+    return null;
+  }
+}
+
+// 保存 cookie 到文件
+function saveStoredCookie(cookie: StoredCookie): void {
+  try {
+    if (!existsSync(COOKIE_DIR)) {
+      mkdirSync(COOKIE_DIR, { recursive: true });
+    }
+    writeFileSync(COOKIE_FILE, JSON.stringify(cookie, null, 2), 'utf-8');
+    log.info('Cookie 已保存');
+  } catch (e) {
+    log.error(`保存 Cookie 失败: ${e}`);
+  }
+}
+
+// 清除已保存的 cookie
+function clearStoredCookie(): void {
+  try {
+    if (existsSync(COOKIE_FILE)) {
+      unlinkSync(COOKIE_FILE);
+      log.info('Cookie 已清除');
+    }
+  } catch (e) {
+    log.error(`清除 Cookie 失败: ${e}`);
+  }
+}
+
 export class NeteaseMusicProvider implements MusicProvider {
   private authenticated = false;
   private userId: string | null = null;
+  private nickname: string | null = null;
+  private avatar: string | null = null;
+  private signature: string | null = null;
+  private cookie: string | null = null;
   private currentTrack: MusicTrack | null = null;
   private playing = false;
   private volume = 50;
 
+  constructor() {
+    // 启动时尝试恢复登录状态（异步，不阻塞构造）
+    this.restoreSession().catch(() => {});
+  }
+
   async getAuthStatus(): Promise<MusicAuthStatus> {
-    if (this.authenticated) {
-      return { connected: true, userId: this.userId || undefined, nickname: 'Music Lover' };
+    if (this.authenticated && this.userId) {
+      return {
+        connected: true,
+        userId: this.userId,
+        nickname: this.nickname || 'Music Lover',
+        avatar: this.avatar || undefined,
+        signature: this.signature || undefined,
+      };
     }
     return { connected: false };
   }
@@ -53,6 +121,178 @@ export class NeteaseMusicProvider implements MusicProvider {
       authUrl: 'https://music.163.com/#/login',
       message: '请在浏览器中打开链接完成网易云音乐授权',
     };
+  }
+
+  /**
+   * 生成二维码登录凭证
+   * 调用 NeteaseCloudMusicApi 的 login_qr_key + login_qr_create
+   */
+  async createQrCode(): Promise<{ key: string; qrimg: string }> {
+    const api = await getApi();
+
+    // Step 1: 获取二维码 key
+    // 返回格式: { status: 200, body: { data: { code: 200, unikey: "..." }, code: 200 } }
+    const keyResult = await api.login_qr_key();
+
+    const key = keyResult.body?.data?.unikey;
+    if (!key) {
+      log.error(`获取二维码 key 失败，返回数据: ${JSON.stringify(keyResult)}`);
+      throw new Error('获取二维码 key 失败');
+    }
+
+    // Step 2: 根据 key 生成二维码图片（base64）
+    // 返回格式: { status: 200, body: { data: { qrimg: "data:image/..." } } }
+    const qrResult = await api.login_qr_create({ key, qrimg: true });
+
+    const qrimg = qrResult.body?.data?.qrimg;
+    if (!qrimg) {
+      log.error(`生成二维码图片失败，返回数据: ${JSON.stringify(qrResult)}`);
+      throw new Error('生成二维码图片失败');
+    }
+
+    log.info('二维码已生成');
+    return { key, qrimg };
+  }
+
+  /**
+   * 轮询二维码扫码状态
+   * code: 800=过期, 801=等待扫码, 802=已扫码待确认, 803=登录成功
+   * 返回格式: { status: 200, body: { code: 801, cookie: [...] } }
+   */
+  async checkQrStatus(key: string): Promise<{ code: number; cookie?: string }> {
+    const api = await getApi();
+    const result = await api.login_qr_check({ key });
+
+    // 兼容返回格式
+    const code = result.body?.code ?? result.code;
+    const cookieArr = result.body?.cookie ?? result.cookie;
+
+    if (code === 803) {
+      // 登录成功，cookie 是数组格式，需要转换为字符串
+      log.info('扫码登录成功');
+
+      // cookie 可能是数组或字符串
+      let cookieStr: string = '';
+      if (Array.isArray(cookieArr)) {
+        cookieStr = cookieArr.join('; ');
+      } else if (typeof cookieArr === 'string') {
+        cookieStr = cookieArr;
+      }
+
+      // 保存 cookie 和用户信息
+      this.cookie = cookieStr;
+      this.authenticated = true;
+
+      // 尝试获取用户信息
+      try {
+        const profile = await this.fetchUserProfile();
+        if (profile) {
+          this.userId = profile.userId;
+          this.nickname = profile.nickname;
+          this.avatar = profile.avatar;
+          this.signature = profile.signature;
+        }
+      } catch {
+        // 获取用户信息失败不影响登录
+      }
+
+      // 持久化 cookie
+      saveStoredCookie({
+        cookie: cookieStr,
+        userId: this.userId || '',
+        nickname: this.nickname || '',
+        avatar: this.avatar || undefined,
+        signature: this.signature || undefined,
+        savedAt: new Date().toISOString(),
+      });
+
+      return { code, cookie: cookieStr };
+    }
+
+    return { code };
+  }
+
+  /**
+   * 从文件恢复登录状态
+   * sidecar 启动时调用
+   * 返回格式: { status: 200, body: { data: { profile: { userId: ..., nickname: ... } } } }
+   */
+  async restoreSession(): Promise<boolean> {
+    const stored = loadStoredCookie();
+    if (!stored || !stored.cookie) {
+      return false;
+    }
+
+    try {
+      // 使用保存的 cookie 验证登录状态
+      const api = await getApi();
+      const result = await api.login_status({ cookie: stored.cookie });
+
+      // 兼容返回格式
+      const body = result.body || result;
+      const profile = body.data?.profile || body.profile;
+
+      if (profile) {
+        this.cookie = stored.cookie;
+        this.authenticated = true;
+        this.userId = stored.userId || String(profile.userId || '');
+        this.nickname = stored.nickname || profile.nickname || '';
+        this.avatar = stored.avatar || profile.avatarUrl || null;
+        this.signature = stored.signature || profile.signature || null;
+        log.info(`登录状态已恢复: ${this.nickname}`);
+        return true;
+      } else {
+        // cookie 已失效，清除
+        clearStoredCookie();
+        log.warn('Cookie 已失效，已清除');
+        return false;
+      }
+    } catch (e) {
+      log.error(`恢复登录状态失败: ${e}`);
+      clearStoredCookie();
+      return false;
+    }
+  }
+
+  /**
+   * 退出登录
+   */
+  async logout(): Promise<void> {
+    this.authenticated = false;
+    this.userId = null;
+    this.nickname = null;
+    this.avatar = null;
+    this.signature = null;
+    this.cookie = null;
+    clearStoredCookie();
+    log.info('已退出登录');
+  }
+
+  /**
+   * 获取用户资料（内部方法）
+   * 返回格式: { status: 200, body: { code: 200, account: { id: ... }, profile: { nickname: ..., signature: ... } } }
+   */
+  private async fetchUserProfile(): Promise<{ userId: string; nickname: string; avatar: string; signature: string } | null> {
+    if (!this.cookie) return null;
+
+    try {
+      const api = await getApi();
+      const result = await api.user_account({ cookie: this.cookie });
+
+      // 兼容返回格式
+      const body = result.body || result;
+      if (body.code === 200 && body.account) {
+        return {
+          userId: String(body.account.id),
+          nickname: body.profile?.nickname || '',
+          avatar: body.profile?.avatarUrl || '',
+          signature: body.profile?.signature || '',
+        };
+      }
+    } catch (e) {
+      log.error(`获取用户信息失败: ${e}`);
+    }
+    return null;
   }
 
   // 搜索歌曲
@@ -128,14 +368,19 @@ export class NeteaseMusicProvider implements MusicProvider {
     }
   }
 
-  // 获取每日推荐
+  // 获取每日推荐（已登录时使用 cookie 获取个性化推荐）
   async getDailyRecommendations(): Promise<MusicTrack[]> {
     try {
       const api = await getApi();
-      const result = await api.recommend_songs();
+      // 已登录时携带 cookie 获取个性化推荐
+      const params: any = {};
+      if (this.cookie) {
+        params.cookie = this.cookie;
+      }
+      const result = await api.recommend_songs(params);
 
       if (result.status !== 200 || !result.body?.data?.dailySongs) {
-        // 未登录，降级到热歌榜
+        // 未登录或失败，降级到热歌榜
         return this.getHotTracks();
       }
 
