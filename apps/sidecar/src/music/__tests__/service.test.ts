@@ -9,7 +9,7 @@ vi.mock('../netease', () => ({
     simulateLogin: vi.fn(),
     searchTracks: vi.fn().mockResolvedValue([]),
     getHotTracks: vi.fn().mockResolvedValue([]),
-    fillTrackUrls: vi.fn().mockImplementation((tracks) => Promise.resolve(tracks)),
+    fillTrackUrls: vi.fn().mockImplementation((tracks) => Promise.resolve({ playableTracks: tracks, vipTracks: [] })),
   })),
 }));
 

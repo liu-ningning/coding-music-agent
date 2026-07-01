@@ -537,7 +537,7 @@ export class NeteaseMusicProvider implements MusicProvider {
   }
 
   // 批量获取播放链接
-  async fillTrackUrls(tracks: MusicTrack[]): Promise<MusicTrack[]> {
+  async fillTrackUrls(tracks: MusicTrack[]): Promise<{ playableTracks: MusicTrack[]; vipTracks: MusicTrack[] }> {
     const ids = tracks.map(t => t.providerTrackId).join(',');
     try {
       const api = await getApi();
@@ -560,15 +560,18 @@ export class NeteaseMusicProvider implements MusicProvider {
         let vipTrialCount = 0;
         let paidTrialCount = 0;
 
-        // 过滤掉不可播放的歌曲
-        const playableTracks = tracks.filter(t => {
+        // 分离可播放歌曲和 VIP 歌曲
+        const playableTracks: MusicTrack[] = [];
+        const vipTracks: MusicTrack[] = [];
+
+        for (const t of tracks) {
           const songInfo = songInfoMap.get(t.providerTrackId);
           const url = urlMap.get(t.providerTrackId);
 
-          // 没有歌曲信息或 URL 的歌曲直接过滤
+          // 没有歌曲信息或 URL 的歌曲直接跳过
           if (!songInfo || !url) {
             noUrlCount++;
-            return false;
+            continue;
           }
 
           // fee: 0=免费, 1=VIP, 4=付费专辑, 8=免费+VIP
@@ -577,36 +580,38 @@ export class NeteaseMusicProvider implements MusicProvider {
           // 检查是否有试听信息（freeTrialInfo 存在表示只能试听）
           const hasFreeTrial = songInfo.freeTrialInfo != null;
 
-          // VIP 歌曲（fee=1）且只能试听，过滤掉
+          // VIP 歌曲（fee=1）且只能试听，收集起来用于相似歌曲替换
           if (fee === 1 && hasFreeTrial) {
             vipTrialCount++;
-            return false;
+            vipTracks.push(t);
+            continue;
           }
 
-          // 付费专辑（fee=4）且只能试听，过滤掉
+          // 付费专辑（fee=4）且只能试听，同样收集
           if (fee === 4 && hasFreeTrial) {
             paidTrialCount++;
-            return false;
+            vipTracks.push(t);
+            continue;
           }
 
-          return true;
-        });
+          playableTracks.push({
+            ...t,
+            playUrl: urlMap.get(t.providerTrackId),
+            playable: true,
+          });
+        }
 
         const filteredCount = tracks.length - playableTracks.length;
         if (filteredCount > 0) {
           log.info(`过滤掉 ${filteredCount} 首歌曲: 无URL=${noUrlCount}, VIP试听=${vipTrialCount}, 付费试听=${paidTrialCount}`);
         }
 
-        return playableTracks.map(t => ({
-          ...t,
-          playUrl: urlMap.get(t.providerTrackId),
-          playable: true,
-        }));
+        return { playableTracks, vipTracks };
       }
     } catch (e) {
       log.error(`批量获取地址失败: ${e}`);
     }
-    return tracks;
+    return { playableTracks: tracks, vipTracks: [] };
   }
 
   // 获取歌词

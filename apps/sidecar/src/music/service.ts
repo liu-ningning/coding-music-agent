@@ -212,12 +212,42 @@ export class MusicService {
     }
 
     if (tracks.length > 0) {
-      tracks = await this.provider.fillTrackUrls(tracks);
+      const { playableTracks, vipTracks } = await this.provider.fillTrackUrls(tracks);
+      log.info(`[recommend] fillTrackUrls: 总 ${tracks.length} 首 → 可播放 ${playableTracks.length} 首, VIP ${vipTracks.length} 首`);
+      tracks = playableTracks;
+
+      // 用被过滤的 VIP 歌曲的艺术家名搜索免费替代歌曲
+      if (vipTracks.length > 0) {
+        try {
+          const replacementTracks = await this.searchFreeReplacements(vipTracks, mood, preferences);
+          if (replacementTracks.length > 0) {
+            // 过滤已播放和已有的歌曲
+            const playedSet = new Set(playedTrackIds);
+            const existingIds = new Set(tracks.map(t => t.providerTrackId));
+            const filtered = replacementTracks
+              .filter(t => !playedSet.has(t.providerTrackId) && !existingIds.has(t.providerTrackId))
+              .map(t => ({ ...t, source: 'daily' as const })); // 标记为推荐来源，与被替换的歌曲一致
+            tracks = [...filtered, ...tracks];
+            log.info(`[recommend] VIP 替换: ${vipTracks.length} 首 VIP → ${filtered.length} 首免费替代 (source=daily)`);
+          } else {
+            log.info(`[recommend] VIP 替换: 搜索结果为空`);
+          }
+        } catch (e) {
+          log.warn(`VIP 歌曲替换失败: ${e}`);
+        }
+      }
     }
 
     const atmosphere = this.moodToAtmosphere(mood);
     const reason = this.generateReason(mood, source, preferences);
     const finalTracks = tracks.slice(0, 50);
+
+    // 统计各来源数量
+    const sourceCounts = finalTracks.reduce((acc, t) => {
+      acc[t.source || 'unknown'] = (acc[t.source || 'unknown'] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    log.info(`[recommend] 最终 ${finalTracks.length} 首: ${JSON.stringify(sourceCounts)}`);
 
     // 计算多样性分数
     const diversityScore = this.calculateDiversityScore(finalTracks);
@@ -522,6 +552,84 @@ export class MusicService {
     scoredTracks.sort((a, b) => b.score - a.score);
 
     return scoredTracks.map(item => item.track);
+  }
+
+  /**
+   * 用被过滤的 VIP 歌曲的艺术家名搜索免费替代歌曲
+   * 从 VIP 歌曲中提取艺术家名，结合当前 Mood 生成搜索词，
+   * 搜索后仅保留可播放的免费歌曲
+   */
+  private async searchFreeReplacements(
+    vipTracks: MusicTrack[],
+    mood: CodingMoodState,
+    preferences: string[] = []
+  ): Promise<MusicTrack[]> {
+    // 从 VIP 歌曲中提取不重复的艺术家名
+    const artistSet = new Set<string>();
+    for (const track of vipTracks) {
+      for (const artist of track.artists) {
+        if (artist && artist !== 'Unknown') {
+          artistSet.add(artist);
+        }
+      }
+    }
+
+    if (artistSet.size === 0) return [];
+
+    const artists = [...artistSet];
+    log.info(`VIP 歌曲艺术家: ${artists.join(', ')}`);
+
+    // 用「艺术家名 + mood 修饰词」生成搜索词，最多搜 3 个艺术家避免请求过多
+    const moodModifiers = this.getMoodModifiers(mood);
+    const searchQueries: string[] = [];
+
+    for (const artist of artists.slice(0, 3)) {
+      // 随机选一个 mood 修饰词组合
+      const modifier = moodModifiers[Math.floor(Math.random() * moodModifiers.length)];
+      searchQueries.push(`${artist} ${modifier}`);
+    }
+
+    // 搜索歌曲
+    let allTracks: MusicTrack[] = [];
+    for (const query of searchQueries) {
+      const results = await this.provider.searchTracks(query);
+      allTracks.push(...results);
+      if (allTracks.length >= 30) break;
+    }
+
+    // 去重
+    const seen = new Set<string>();
+    allTracks = allTracks.filter(t => {
+      if (seen.has(t.providerTrackId)) return false;
+      seen.add(t.providerTrackId);
+      return true;
+    });
+
+    // 填充播放链接（会自动过滤掉 VIP）
+    if (allTracks.length > 0) {
+      const { playableTracks } = await this.provider.fillTrackUrls(allTracks);
+      return playableTracks;
+    }
+
+    return [];
+  }
+
+  /**
+   * 获取 Mood 对应的修饰词（用于 VIP 替换搜索）
+   */
+  private getMoodModifiers(mood: CodingMoodState): string[] {
+    const modifiers: Record<CodingMoodState, string[]> = {
+      feature_flow: ['轻音乐', '纯音乐', '电子', '节奏'],
+      debug_calm: ['纯音乐', '钢琴', '轻音乐', '舒缓'],
+      deep_refactor: ['ambient', '纯音乐', 'lo-fi', '氛围'],
+      review_focus: ['纯音乐', '白噪音', '轻音乐', '安静'],
+      emergency_focus: ['白噪音', '纯音乐', '轻音乐', '专注'],
+      low_energy: ['钢琴', '轻音乐', '治愈', '温暖'],
+      late_night_flow: ['ambient', 'lo-fi', '深夜', '轻音乐'],
+      recovery_mode: ['轻音乐', '钢琴', '舒缓', '治愈'],
+      neutral: ['纯音乐', '轻音乐', 'ambient', '钢琴'],
+    };
+    return modifiers[mood] || modifiers.neutral;
   }
 
   /**
@@ -965,12 +1073,11 @@ export class MusicService {
         return true;
       });
 
-      // 填充播放 URL
+      // 预热只缓存未过滤的原始歌曲，过滤和 VIP 替换在 recommend 流程中统一处理
       if (uniqueTracks.length > 0) {
-        const tracksWithUrl = await this.provider.fillTrackUrls(uniqueTracks);
-        this.trackCache.set(mood, tracksWithUrl);
+        this.trackCache.set(mood, uniqueTracks);
         this.warmupStatus.set(mood, 'ready');
-        log.info(`${mood} 预热完成: ${tracksWithUrl.length} 首`);
+        log.info(`${mood} 预热完成: ${uniqueTracks.length} 首 (未过滤)`);
         return true;
       } else {
         this.warmupStatus.set(mood, 'failed');
