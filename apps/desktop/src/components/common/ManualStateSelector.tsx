@@ -54,7 +54,8 @@ export function ManualStateSelector() {
     } catch (e) {
       // 同步失败，静默处理
     }
-    const rec = await fetchRecommendation(mood, true);
+    // 切换状态时，混入每日推荐（个性化）
+    const rec = await fetchRecommendation(mood, true, true);
     if (rec && rec.tracks.length > 0) {
       await autoPlayRecommendation();
     }

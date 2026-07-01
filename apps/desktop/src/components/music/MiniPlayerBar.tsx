@@ -284,7 +284,9 @@ export function MiniPlayerBar() {
 
   const handleChangeSet = async () => {
     if (!sessionId) return;
-    await fetchRecommendation('neutral', true);
+    // 换歌时，获取相似歌曲（根据当前歌曲推荐相似的）
+    const currentTrackId = playback.currentTrack?.providerTrackId;
+    await fetchRecommendation('neutral', true, false, currentTrackId);
     const { sessions } = useMusicStore.getState();
     const data = sessions[sessionId];
     if (data?.queue.length) {

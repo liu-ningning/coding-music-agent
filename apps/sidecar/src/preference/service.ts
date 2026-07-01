@@ -8,6 +8,7 @@ import type {
 import { randomUUID } from 'crypto';
 import { preferenceStore } from '../storage/store';
 import { createLogger } from '../utils/logger';
+import type { UserStyleProfile } from '../music/features';
 
 const log = createLogger('preference');
 
@@ -207,6 +208,52 @@ export class PreferenceService {
     this.learningData.delete(sessionId);
     this.saveToStorage();
     log.info(`重置学习数据: ${sessionId}`);
+  }
+
+  /**
+   * 基于红心歌曲风格画像初始化偏好权重
+   * 授权后调用，让新 Session 从用户真实偏好开始
+   */
+  initializeFromStyleProfile(sessionId: string, profile: UserStyleProfile): void {
+    if (profile.trackCount === 0) {
+      log.info('红心歌曲为空，使用默认权重');
+      return;
+    }
+
+    const learning = this.getOrCreateLearning(sessionId);
+
+    // 根据偏好 Mood 设置权重
+    for (const mood of profile.preferredMoods) {
+      // 偏好 Mood 权重设为 0.7（高于默认 0.5）
+      learning.styleWeights[mood] = 0.7;
+    }
+
+    // 根据平均特征调整其他 Mood 权重
+    const { avgFeatures } = profile;
+
+    // 高能量用户 → feature_flow 权重高
+    if (avgFeatures.energy > 0.6) {
+      learning.styleWeights.feature_flow = Math.max(learning.styleWeights.feature_flow, 0.65);
+    }
+
+    // 低能量 + 高器乐度 → debug_calm, deep_refactor 权重高
+    if (avgFeatures.energy < 0.4 && avgFeatures.instrumentalness > 0.6) {
+      learning.styleWeights.debug_calm = Math.max(learning.styleWeights.debug_calm, 0.65);
+      learning.styleWeights.deep_refactor = Math.max(learning.styleWeights.deep_refactor, 0.65);
+    }
+
+    // 高器乐度 → review_focus 权重高
+    if (avgFeatures.instrumentalness > 0.7) {
+      learning.styleWeights.review_focus = Math.max(learning.styleWeights.review_focus, 0.65);
+    }
+
+    // 更新最后更新时间
+    learning.lastUpdated = new Date().toISOString();
+
+    // 保存到存储
+    this.saveToStorage();
+
+    log.info(`基于红心歌曲初始化偏好: ${profile.trackCount} 首, 偏好 Mood: ${profile.preferredMoods.join(', ')}`);
   }
 
   /**

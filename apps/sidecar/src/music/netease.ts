@@ -48,6 +48,7 @@ interface StoredCookie {
   nickname: string;
   avatar?: string;
   signature?: string;
+  vipType?: number;
   savedAt: string;
 }
 
@@ -93,6 +94,7 @@ export class NeteaseMusicProvider implements MusicProvider {
   private nickname: string | null = null;
   private avatar: string | null = null;
   private signature: string | null = null;
+  private vipType: number = 0; // 0=普通用户, 1=VIP, 2=SVIP
   private cookie: string | null = null;
   private currentTrack: MusicTrack | null = null;
   private playing = false;
@@ -111,6 +113,7 @@ export class NeteaseMusicProvider implements MusicProvider {
         nickname: this.nickname || 'Music Lover',
         avatar: this.avatar || undefined,
         signature: this.signature || undefined,
+        vipType: this.vipType,
       };
     }
     return { connected: false };
@@ -191,6 +194,7 @@ export class NeteaseMusicProvider implements MusicProvider {
           this.nickname = profile.nickname;
           this.avatar = profile.avatar;
           this.signature = profile.signature;
+          this.vipType = profile.vipType;
         }
       } catch {
         // 获取用户信息失败不影响登录
@@ -203,6 +207,7 @@ export class NeteaseMusicProvider implements MusicProvider {
         nickname: this.nickname || '',
         avatar: this.avatar || undefined,
         signature: this.signature || undefined,
+        vipType: this.vipType,
         savedAt: new Date().toISOString(),
       });
 
@@ -239,6 +244,7 @@ export class NeteaseMusicProvider implements MusicProvider {
         this.nickname = stored.nickname || profile.nickname || '';
         this.avatar = stored.avatar || profile.avatarUrl || null;
         this.signature = stored.signature || profile.signature || null;
+        this.vipType = stored.vipType ?? 0;
         log.info(`登录状态已恢复: ${this.nickname}`);
         return true;
       } else {
@@ -263,6 +269,7 @@ export class NeteaseMusicProvider implements MusicProvider {
     this.nickname = null;
     this.avatar = null;
     this.signature = null;
+    this.vipType = 0;
     this.cookie = null;
     clearStoredCookie();
     log.info('已退出登录');
@@ -270,9 +277,9 @@ export class NeteaseMusicProvider implements MusicProvider {
 
   /**
    * 获取用户资料（内部方法）
-   * 返回格式: { status: 200, body: { code: 200, account: { id: ... }, profile: { nickname: ..., signature: ... } } }
+   * 返回格式: { status: 200, body: { code: 200, account: { id: ..., vipType: ... }, profile: { nickname: ..., signature: ... } } }
    */
-  private async fetchUserProfile(): Promise<{ userId: string; nickname: string; avatar: string; signature: string } | null> {
+  private async fetchUserProfile(): Promise<{ userId: string; nickname: string; avatar: string; signature: string; vipType: number } | null> {
     if (!this.cookie) return null;
 
     try {
@@ -287,6 +294,7 @@ export class NeteaseMusicProvider implements MusicProvider {
           nickname: body.profile?.nickname || '',
           avatar: body.profile?.avatarUrl || '',
           signature: body.profile?.signature || '',
+          vipType: body.account?.vipType ?? 0, // 0=普通用户, 1=VIP, 2=SVIP
         };
       }
     } catch (e) {
@@ -381,18 +389,98 @@ export class NeteaseMusicProvider implements MusicProvider {
 
       if (result.status !== 200 || !result.body?.data?.dailySongs) {
         // 未登录或失败，降级到热歌榜
+        log.warn(`每日推荐为空或失败，降级到热歌榜`);
         return this.getHotTracks();
       }
 
-      return result.body.data.dailySongs.map((song: any) => this.parseSong(song));
+      const dailySongs = result.body.data.dailySongs;
+      log.info(`获取每日推荐: ${dailySongs.length} 首`);
+      return dailySongs.map((song: any) => this.parseSong(song));
     } catch (e) {
       log.error(`每日推荐失败: ${e}`);
       return this.getHotTracks();
     }
   }
 
+  /**
+   * 获取用户红心歌曲
+   * 已登录时调用网易云 API 获取真实红心歌曲
+   * 未登录时降级到热歌榜
+   */
   async getUserLikedTracks(): Promise<MusicTrack[]> {
-    return this.getHotTracks();
+    // 未登录时降级到热歌榜
+    if (!this.cookie || !this.userId) {
+      return this.getHotTracks();
+    }
+
+    try {
+      const api = await getApi();
+      const result = await api.user_likes({
+        uid: this.userId,
+        cookie: this.cookie,
+      });
+
+      // 兼容返回格式
+      const body = result.body || result;
+      if (body.code === 200 && body.ids && body.ids.length > 0) {
+        // user_likes 只返回歌曲 ID 列表，需要获取详情
+        const ids = body.ids.slice(0, 50); // 限制数量
+        const trackDetails = await this.getTracksByIds(ids);
+        if (trackDetails.length > 0) {
+          log.info(`获取红心歌曲: ${trackDetails.length} 首`);
+          return trackDetails;
+        }
+      }
+
+      // 降级到热歌榜
+      log.warn('红心歌曲为空，降级到热歌榜');
+      return this.getHotTracks();
+    } catch (e) {
+      log.error(`获取红心歌曲失败: ${e}`);
+      return this.getHotTracks();
+    }
+  }
+
+  /**
+   * 根据 ID 列表获取歌曲详情
+   */
+  private async getTracksByIds(ids: string[]): Promise<MusicTrack[]> {
+    try {
+      const api = await getApi();
+      const result = await api.song_detail({
+        ids: ids.join(','),
+      });
+
+      // 兼容返回格式
+      const body = result.body || result;
+      if (body.code === 200 && body.songs) {
+        return body.songs.map((song: any) => this.parseSong(song));
+      }
+    } catch (e) {
+      log.error(`获取歌曲详情失败: ${e}`);
+    }
+    return [];
+  }
+
+  /**
+   * 获取相似歌曲
+   * 根据当前播放的歌曲推荐相似歌曲
+   */
+  async getSimilarTracks(trackId: string): Promise<MusicTrack[]> {
+    try {
+      const api = await getApi();
+      const result = await api.simi_song({ id: trackId });
+
+      // 兼容返回格式
+      const body = result.body || result;
+      if (body.code === 200 && body.songs) {
+        log.info(`获取相似歌曲: ${body.songs.length} 首`);
+        return body.songs.map((song: any) => this.parseSong(song));
+      }
+    } catch (e) {
+      log.error(`获取相似歌曲失败: ${e}`);
+    }
+    return [];
   }
 
   async createPlaylist(input: CreatePlaylistInput): Promise<Playlist> {
@@ -457,14 +545,62 @@ export class NeteaseMusicProvider implements MusicProvider {
 
       if (result.status === 200 && result.body?.data) {
         const urlMap = new Map<string, string>();
+        const songInfoMap = new Map<string, any>();
+
         for (const item of result.body.data) {
-          if (item.url) urlMap.set(String(item.id), item.url);
+          const songId = String(item.id);
+          if (item.url) {
+            urlMap.set(songId, item.url);
+          }
+          songInfoMap.set(songId, item);
         }
 
-        return tracks.map(t => ({
+        // 统计过滤原因
+        let noUrlCount = 0;
+        let vipTrialCount = 0;
+        let paidTrialCount = 0;
+
+        // 过滤掉不可播放的歌曲
+        const playableTracks = tracks.filter(t => {
+          const songInfo = songInfoMap.get(t.providerTrackId);
+          const url = urlMap.get(t.providerTrackId);
+
+          // 没有歌曲信息或 URL 的歌曲直接过滤
+          if (!songInfo || !url) {
+            noUrlCount++;
+            return false;
+          }
+
+          // fee: 0=免费, 1=VIP, 4=付费专辑, 8=免费+VIP
+          const fee = songInfo.fee ?? 0;
+
+          // 检查是否有试听信息（freeTrialInfo 存在表示只能试听）
+          const hasFreeTrial = songInfo.freeTrialInfo != null;
+
+          // VIP 歌曲（fee=1）且只能试听，过滤掉
+          if (fee === 1 && hasFreeTrial) {
+            vipTrialCount++;
+            return false;
+          }
+
+          // 付费专辑（fee=4）且只能试听，过滤掉
+          if (fee === 4 && hasFreeTrial) {
+            paidTrialCount++;
+            return false;
+          }
+
+          return true;
+        });
+
+        const filteredCount = tracks.length - playableTracks.length;
+        if (filteredCount > 0) {
+          log.info(`过滤掉 ${filteredCount} 首歌曲: 无URL=${noUrlCount}, VIP试听=${vipTrialCount}, 付费试听=${paidTrialCount}`);
+        }
+
+        return playableTracks.map(t => ({
           ...t,
-          playUrl: urlMap.get(t.providerTrackId) || undefined,
-          playable: urlMap.has(t.providerTrackId),
+          playUrl: urlMap.get(t.providerTrackId),
+          playable: true,
         }));
       }
     } catch (e) {

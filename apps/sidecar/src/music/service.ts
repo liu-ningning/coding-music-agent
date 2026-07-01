@@ -79,6 +79,13 @@ export class MusicService {
   async checkQrAuth(key: string): Promise<{ code: number; message: string }> {
     const result = await this.provider.checkQrStatus(key);
 
+    // 登录成功后，自动初始化偏好权重
+    if (result.code === 803) {
+      this.initializePreferencesAfterLogin().catch(e => {
+        log.warn(`登录后初始化偏好失败: ${e}`);
+      });
+    }
+
     // 将 code 转换为用户友好的消息
     let message = '';
     switch (result.code) {
@@ -102,26 +109,104 @@ export class MusicService {
   }
 
   /**
+   * 登录成功后初始化偏好权重
+   * 获取红心歌曲 → 分析风格 → 初始化权重
+   */
+  private async initializePreferencesAfterLogin(): Promise<void> {
+    try {
+      log.info('开始初始化偏好权重...');
+
+      // 获取红心歌曲
+      const likedTracks = await this.provider.getUserLikedTracks();
+      if (likedTracks.length === 0) {
+        log.info('红心歌曲为空，跳过偏好初始化');
+        return;
+      }
+
+      // 分析风格
+      const profile = this.featureExtractor.analyzeLikedTracks(likedTracks);
+
+      // 初始化权重（使用全局 sessionId）
+      const globalSessionId = 'global';
+      this.preferenceService.initializeFromStyleProfile(globalSessionId, profile);
+
+      log.info(`偏好初始化完成: ${profile.trackCount} 首红心歌曲, 偏好 Mood: ${profile.preferredMoods.join(', ')}`);
+    } catch (e) {
+      log.error(`初始化偏好失败: ${e}`);
+    }
+  }
+
+  /**
    * 退出登录
    */
   async logout(): Promise<void> {
     await this.provider.logout();
   }
 
-  async recommend(sessionId: string, mood: CodingMoodState, refresh: boolean = false, preferences: string[] = [], playedTrackIds: string[] = []): Promise<MusicRecommendation> {
+  async recommend(sessionId: string, mood: CodingMoodState, refresh: boolean = false, preferences: string[] = [], playedTrackIds: string[] = [], includeDaily: boolean = true, currentTrackId?: string): Promise<MusicRecommendation> {
     let tracks: MusicTrack[] = [];
     let source = 'netease';
 
     try {
-      tracks = await this.fetchTracksByMood(mood, refresh, preferences, playedTrackIds, sessionId);
+      // 切歌/切换状态时（includeDaily=false），强制 refresh 并增加搜索随机性
+      const shouldRefresh = refresh || !includeDaily;
+      tracks = await this.fetchTracksByMood(mood, shouldRefresh, preferences, playedTrackIds, sessionId);
+      log.info(`搜索获取 ${tracks.length} 首歌曲 (mood=${mood}, refresh=${shouldRefresh})`);
     } catch (e) {
       log.error(`获取歌曲失败: ${e}`);
       source = 'fallback';
     }
 
+    // 标记搜索结果来源
+    tracks = tracks.map(t => ({ ...t, source: 'search' as const }));
+
+    // 已登录且需要混入每日推荐时，混入每日推荐歌曲（增加个性化）
+    // includeDaily 为 true 时混入每日推荐
+    const authStatus = await this.provider.getAuthStatus();
+    if (authStatus.connected && tracks.length > 0 && includeDaily) {
+      try {
+        const dailyTracks = await this.provider.getDailyRecommendations();
+        if (dailyTracks.length > 0) {
+          // 标记每日推荐来源
+          const dailyTracksWithSource = dailyTracks.map(t => ({ ...t, source: 'daily' as const }));
+          // 过滤已播放歌曲
+          const playedSet = new Set(playedTrackIds);
+          const filteredDaily = dailyTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
+          // 每日推荐和搜索结果混合
+          tracks = [...filteredDaily, ...tracks];
+          source = 'netease+daily';
+          log.info(`混入每日推荐: ${filteredDaily.length} 首, 总计 ${tracks.length} 首`);
+        }
+      } catch (e) {
+        // 每日推荐失败不影响整体推荐
+        log.warn(`获取每日推荐失败: ${e}`);
+      }
+    }
+
+    // 切歌时（有 currentTrackId），获取相似歌曲
+    if (authStatus.connected && currentTrackId && !includeDaily) {
+      try {
+        const similarTracks = await this.provider.getSimilarTracks(currentTrackId);
+        if (similarTracks.length > 0) {
+          // 标记相似歌曲来源
+          const similarTracksWithSource = similarTracks.map(t => ({ ...t, source: 'daily' as const }));
+          // 过滤已播放歌曲
+          const playedSet = new Set(playedTrackIds);
+          const filteredSimilar = similarTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
+          // 相似歌曲放在前面
+          tracks = [...filteredSimilar, ...tracks];
+          source = 'netease+similar';
+          log.info(`混入相似歌曲: ${filteredSimilar.length} 首, 总计 ${tracks.length} 首`);
+        }
+      } catch (e) {
+        // 相似歌曲失败不影响整体推荐
+        log.warn(`获取相似歌曲失败: ${e}`);
+      }
+    }
+
     if (tracks.length === 0) {
       try {
-        tracks = await this.provider.getHotTracks();
+        tracks = (await this.provider.getHotTracks()).map(t => ({ ...t, source: 'hot' as const }));
         source = 'hot';
       } catch {}
     }
@@ -248,7 +333,19 @@ export class MusicService {
         return this.featureExtractor.extractFeatures(track);
       }
     }
-    return null;
+
+    // 缓存中没有，尝试构造一个基本的 MusicTrack 来提取特征
+    // 这种情况可能发生在每日推荐的歌曲不在搜索缓存中
+    const basicTrack: MusicTrack = {
+      id: `track_${trackId}`,
+      provider: 'netease',
+      providerTrackId: trackId,
+      title: '',
+      artists: [],
+      playable: true,
+    };
+
+    return this.featureExtractor.extractFeatures(basicTrack);
   }
 
   /**
@@ -701,7 +798,10 @@ export class MusicService {
   }
 
   private generateReason(mood: CodingMoodState, source: string, preferences: string[] = []): string {
-    const sourceLabel = source === 'hot' ? '热歌榜' : source === 'netease' ? '网易云推荐' : '为你精选';
+    const sourceLabel = source === 'hot' ? '热歌榜'
+      : source === 'netease' ? '网易云搜索'
+      : source === 'netease+daily' ? '个性化推荐'
+      : '为你精选';
 
     // 基础推荐理由（根据 Mood）
     const moodReasons: Record<CodingMoodState, string[]> = {

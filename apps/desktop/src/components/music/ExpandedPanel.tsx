@@ -142,7 +142,12 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
         {/* 推荐理由 - 固定 */}
         {rec?.reason && (
           <div className={s.expandedFixedSection}>
-            <div className={s.expandedSectionTitle}>推荐理由</div>
+            <div className={s.expandedSectionTitle}>
+              推荐理由
+              {rec.contextUsed?.includes('netease+daily') && (
+                <span className={s.recSourceBadge}>个性化</span>
+              )}
+            </div>
             <div className={s.expandedSectionContent}>{rec.reason}</div>
           </div>
         )}
@@ -277,6 +282,9 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
                   >
                     <span className={`${s.expandedQueueIndex} ${i === idx ? s.expandedQueueActive : ''}`}>{i === idx ? <IconPlay size={10} /> : i + 1}</span>
                     <span className={`${s.expandedQueueTitle} ${i === idx ? s.expandedQueueActive : ''}`}>{t.title}</span>
+                    {t.source === 'daily' && (
+                      <span className={s.queueSourceTag}>推荐</span>
+                    )}
                     <span style={{ fontSize: 10, marginLeft: 8, color: 'var(--color-text-muted)' }}>{t.artists[0]}</span>
                   </div>
                 ))}

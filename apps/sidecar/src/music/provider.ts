@@ -7,6 +7,7 @@ export interface MusicAuthStatus {
   nickname?: string;
   avatar?: string;
   signature?: string;
+  vipType?: number; // 0=普通用户, 1=VIP, 2=SVIP
   expiresAt?: string;
 }
 

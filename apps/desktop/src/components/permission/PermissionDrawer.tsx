@@ -61,7 +61,7 @@ export function PermissionDrawer() {
   const [state, setState] = useState<PermissionState | null>(null);
 
   // 网易云登录状态
-  const [musicAuth, setMusicAuth] = useState<{ connected: boolean; userId?: string; nickname?: string; avatar?: string; signature?: string }>({ connected: false });
+  const [musicAuth, setMusicAuth] = useState<{ connected: boolean; userId?: string; nickname?: string; avatar?: string; signature?: string; vipType?: number }>({ connected: false });
 
   // 二维码弹窗状态
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -259,7 +259,31 @@ export function PermissionDrawer() {
                     {musicAuth.avatar ? <img src={musicAuth.avatar} alt="" /> : '♫'}
                   </div>
                   <div>
-                    <div className={s.neteaseUserName}>{musicAuth.nickname || 'Music Lover'}</div>
+                    <div className={s.neteaseUserName}>
+                      {musicAuth.nickname || 'Music Lover'}
+                      {musicAuth.vipType === 0 && (
+                        <span className={s.vipBadge}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 4L10 16H12L18 4H15.5L12 12.5L8.5 4H4Z"/>
+                          </svg>
+                        </span>
+                      )}
+                      {musicAuth.vipType === 1 && (
+                        <span className={`${s.vipBadge} ${s.vipBadgeActive}`}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 4L10 16H12L18 4H15.5L12 12.5L8.5 4H4Z"/>
+                          </svg>
+                        </span>
+                      )}
+                      {musicAuth.vipType === 2 && (
+                        <span className={`${s.vipBadge} ${s.vipBadgeActive} ${s.vipBadgeSvip}`}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 4L10 16H12L18 4H15.5L12 12.5L8.5 4H4Z"/>
+                          </svg>
+                          <span className={s.vipLevel}>S</span>
+                        </span>
+                      )}
+                    </div>
                     <div className={s.neteaseUserLabel}>{musicAuth.signature || '这个人很懒，什么都没写'}</div>
                   </div>
                 </div>

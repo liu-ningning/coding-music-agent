@@ -39,6 +39,7 @@ export function FeedbackButtons({ recommendationId }: { recommendationId: string
   const [dedupHint, setDedupHint] = useState<string | null>(null);
   const session = useSessionStore((st) => st.current);
   const sessionId = session?.id;
+  const playback = useMusicStore((st) => st.playback);
 
   const handle = async (action: MusicFeedbackAction) => {
     if (!sessionId) return;
@@ -68,7 +69,9 @@ export function FeedbackButtons({ recommendationId }: { recommendationId: string
         const playedTrackIds = useMusicStore.getState().getPlayedTrackIds(sessionId);
         const playedCount = playedTrackIds.length;
 
-        await fetchRecommendation('neutral', true);
+        // 换一组时，获取相似歌曲（根据当前歌曲推荐相似的）
+        const currentTrackId = playback.currentTrack?.providerTrackId;
+        await fetchRecommendation('neutral', true, false, currentTrackId);
 
         // 显示去重提示
         if (playedCount > 0) {

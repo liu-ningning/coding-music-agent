@@ -1,4 +1,13 @@
-import type { MusicTrack, TrackFeatures } from '@music-coding/shared-types';
+import type { MusicTrack, TrackFeatures, CodingMoodState } from '@music-coding/shared-types';
+
+// 用户风格画像
+export interface UserStyleProfile {
+  avgFeatures: TrackFeatures;       // 平均特征
+  preferredGenres: string[];        // 偏好类型
+  preferredMoods: CodingMoodState[]; // 偏好 Mood
+  trackCount: number;               // 分析的歌曲数量
+  updatedAt: string;                // 更新时间
+}
 
 // 关键词到特征的映射
 const KEYWORD_FEATURES: Record<string, Partial<TrackFeatures>> = {
@@ -212,5 +221,130 @@ export class FeatureExtractor {
     }
 
     return count > 0 ? totalScore / count : 0.5;
+  }
+
+  /**
+   * 分析红心歌曲，生成用户风格画像
+   */
+  analyzeLikedTracks(tracks: MusicTrack[]): UserStyleProfile {
+    if (tracks.length === 0) {
+      return {
+        avgFeatures: { ...DEFAULT_FEATURES },
+        preferredGenres: [],
+        preferredMoods: [],
+        trackCount: 0,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    // 提取所有歌曲的特征
+    const featuresList = tracks.map(track => this.extractFeatures(track));
+
+    // 计算平均特征
+    const avgFeatures: TrackFeatures = {
+      bpm: 0,
+      energy: 0,
+      valence: 0,
+      danceability: 0,
+      instrumentalness: 0,
+    };
+
+    for (const features of featuresList) {
+      avgFeatures.bpm += features.bpm;
+      avgFeatures.energy += features.energy;
+      avgFeatures.valence += features.valence;
+      avgFeatures.danceability += features.danceability;
+      avgFeatures.instrumentalness += features.instrumentalness;
+    }
+
+    avgFeatures.bpm /= tracks.length;
+    avgFeatures.energy /= tracks.length;
+    avgFeatures.valence /= tracks.length;
+    avgFeatures.danceability /= tracks.length;
+    avgFeatures.instrumentalness /= tracks.length;
+
+    // 推断偏好类型
+    const preferredGenres = this.inferGenres(avgFeatures);
+
+    // 推断偏好 Mood
+    const preferredMoods = this.inferMoods(avgFeatures);
+
+    return {
+      avgFeatures,
+      preferredGenres,
+      preferredMoods,
+      trackCount: tracks.length,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * 根据平均特征推断偏好类型
+   */
+  private inferGenres(features: TrackFeatures): string[] {
+    const genres: string[] = [];
+
+    // 根据特征判断类型
+    if (features.energy > 0.7 && features.danceability > 0.7) {
+      genres.push('electronic', 'dance');
+    }
+    if (features.instrumentalness > 0.7) {
+      genres.push('instrumental', 'ambient');
+    }
+    if (features.valence > 0.7 && features.energy > 0.6) {
+      genres.push('pop', 'upbeat');
+    }
+    if (features.valence < 0.4 && features.energy < 0.4) {
+      genres.push('sad', 'melancholy');
+    }
+    if (features.bpm < 80 && features.energy < 0.3) {
+      genres.push('chill', 'relaxing');
+    }
+    if (features.instrumentalness > 0.8 && features.energy < 0.3) {
+      genres.push('ambient', 'meditation');
+    }
+
+    // 去重
+    return [...new Set(genres)];
+  }
+
+  /**
+   * 根据平均特征推断偏好 Mood
+   */
+  private inferMoods(features: TrackFeatures): CodingMoodState[] {
+    const moods: CodingMoodState[] = [];
+
+    // 高能量 + 高可舞性 → feature_flow
+    if (features.energy > 0.6 && features.danceability > 0.6) {
+      moods.push('feature_flow');
+    }
+
+    // 低能量 + 高器乐度 → debug_calm, deep_refactor
+    if (features.energy < 0.4 && features.instrumentalness > 0.6) {
+      moods.push('debug_calm', 'deep_refactor');
+    }
+
+    // 极低干扰 → review_focus
+    if (features.energy < 0.3 && features.instrumentalness > 0.7) {
+      moods.push('review_focus');
+    }
+
+    // 温和陪伴 → low_energy
+    if (features.energy < 0.4 && features.valence > 0.5) {
+      moods.push('low_energy');
+    }
+
+    // 深夜氛围 → late_night_flow
+    if (features.energy < 0.4 && features.valence < 0.5) {
+      moods.push('late_night_flow');
+    }
+
+    // 如果没有匹配，返回 neutral
+    if (moods.length === 0) {
+      moods.push('neutral');
+    }
+
+    // 去重
+    return [...new Set(moods)];
   }
 }

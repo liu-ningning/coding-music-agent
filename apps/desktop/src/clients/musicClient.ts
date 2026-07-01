@@ -57,7 +57,7 @@ export function getCurrentMood(): CodingMoodState {
 }
 
 // 获取推荐
-export async function fetchRecommendation(mood?: CodingMoodState, refresh: boolean = false): Promise<MusicRecommendation | null> {
+export async function fetchRecommendation(mood?: CodingMoodState, refresh: boolean = false, includeDaily: boolean = true, currentTrackId?: string): Promise<MusicRecommendation | null> {
   const { current } = useSessionStore.getState();
   const sessionId = current?.id;
 
@@ -85,7 +85,7 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
     const res = await fetch(`${SIDECAR_BASE}/music/recommend`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, mood: targetMood, refresh, preferences, playedTrackIds }),
+      body: JSON.stringify({ sessionId, mood: targetMood, refresh, preferences, playedTrackIds, includeDaily, currentTrackId }),
     });
 
     if (!res.ok) {
@@ -195,7 +195,7 @@ export async function logoutMusic(): Promise<void> {
 /**
  * 获取网易云登录状态
  */
-export async function getMusicAuthStatus(): Promise<{ connected: boolean; userId?: string; nickname?: string; avatar?: string; signature?: string }> {
+export async function getMusicAuthStatus(): Promise<{ connected: boolean; userId?: string; nickname?: string; avatar?: string; signature?: string; vipType?: number }> {
   const res = await fetch(`${SIDECAR_BASE}/music/status`);
   if (!res.ok) {
     throw new Error(`获取登录状态失败: ${res.status}`);

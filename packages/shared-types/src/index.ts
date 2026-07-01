@@ -93,6 +93,8 @@ export interface MusicTrack {
   coverUrl?: string;
   playable: boolean;
   playUrl?: string;
+  /** 推荐来源：daily=每日推荐，search=搜索，hot=热歌榜 */
+  source?: 'daily' | 'search' | 'hot';
 }
 
 export interface MusicAtmosphere {
