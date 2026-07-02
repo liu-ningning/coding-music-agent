@@ -523,7 +523,11 @@ export class NeteaseMusicProvider implements MusicProvider {
   async getSongUrl(songId: string): Promise<string | null> {
     try {
       const api = await getApi();
-      const result = await api.song_url({ id: songId });
+      const params: any = { id: songId };
+      if (this.cookie) {
+        params.cookie = this.cookie;
+      }
+      const result = await api.song_url(params);
 
       if (result.status === 200 && result.body?.data?.length > 0) {
         const url = result.body.data[0].url;
@@ -541,7 +545,12 @@ export class NeteaseMusicProvider implements MusicProvider {
     const ids = tracks.map(t => t.providerTrackId).join(',');
     try {
       const api = await getApi();
-      const result = await api.song_url({ id: ids });
+      // 携带 cookie 让服务端识别 VIP 身份，否则 VIP 用户拿不到 VIP 歌曲播放链接
+      const params: any = { id: ids };
+      if (this.cookie) {
+        params.cookie = this.cookie;
+      }
+      const result = await api.song_url(params);
 
       if (result.status === 200 && result.body?.data) {
         const urlMap = new Map<string, string>();

@@ -3,7 +3,7 @@ import type { MusicFeedbackAction, CodingMoodState } from '@music-coding/shared-
 import { useSessionStore } from '@/stores/sessionStore';
 import { useMusicStore } from '@/stores/musicStore';
 import { audioPlayer } from '@/clients/audioPlayer';
-import { fetchRecommendation, setSessionPreferences } from '@/clients/musicClient';
+import { fetchRecommendation, getCurrentMood, setSessionPreferences } from '@/clients/musicClient';
 import { IconRefresh, IconTarget, IconNight, IconFire, IconMute, IconSkip, IconCheck } from '@/components/common/Icons';
 import s from '@/styles/layout.module.css';
 import { SIDECAR_BASE } from '@/config';
@@ -71,7 +71,7 @@ export function FeedbackButtons({ recommendationId }: { recommendationId: string
 
         // 换一组时，获取相似歌曲（根据当前歌曲推荐相似的）
         const currentTrackId = playback.currentTrack?.providerTrackId;
-        await fetchRecommendation('neutral', true, false, currentTrackId);
+        await fetchRecommendation(getCurrentMood(), true, false, currentTrackId);
 
         // 显示去重提示
         if (playedCount > 0) {

@@ -3,7 +3,7 @@ import { useMusicStore } from '@/stores/musicStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
-import { fetchRecommendation } from '@/clients/musicClient';
+import { fetchRecommendation, getCurrentMood } from '@/clients/musicClient';
 import { RefreshIcon } from '@/components/common/RefreshIcon';
 import { WaveBars } from '@/components/common/WaveBars';
 import { IconPrevious, IconPlay, IconPause, IconNext, IconTarget, IconDislike, IconMusic, IconNight, IconVolume, IconVolumeMute, IconLyrics, IconLyricsOff } from '@/components/common/Icons';
@@ -286,7 +286,7 @@ export function MiniPlayerBar() {
     if (!sessionId) return;
     // 换歌时，获取相似歌曲（根据当前歌曲推荐相似的）
     const currentTrackId = playback.currentTrack?.providerTrackId;
-    await fetchRecommendation('neutral', true, false, currentTrackId);
+    await fetchRecommendation(getCurrentMood(), true, false, currentTrackId);
     const { sessions } = useMusicStore.getState();
     const data = sessions[sessionId];
     if (data?.queue.length) {

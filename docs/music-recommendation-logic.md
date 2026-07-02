@@ -443,7 +443,150 @@ sessionPreferences: ["focus"]  // 临时偏好（优先级最高）
 
 ---
 
-## 十、异常处理
+## 十、授权状态与推荐逻辑
+
+### 10.1 两种状态对比
+
+| 能力 | 未授权 | 已授权（非 VIP） | 已授权（VIP/SVIP） |
+|------|:------:|:---------------:|:-----------------:|
+| 关键词搜索歌曲 | ✅ | ✅ | ✅ |
+| 每日个性化推荐 | ❌ 降级为热歌榜 | ✅ | ✅ |
+| 相似歌曲推荐 | ✅ | ✅ | ✅ |
+| VIP 歌曲播放 | ❌ | ❌ 替换为免费歌曲 | ✅ 直接播放 |
+| 付费专辑播放 | ❌ | ❌ | ❌ |
+| 红心歌曲分析 | ❌ 降级为热歌榜 | ✅ 初始化偏好权重 | ✅ 初始化偏好权重 |
+| 用户头像/昵称 | ❌ | ✅ | ✅ |
+
+### 10.2 未授权推荐流程
+
+```
+用户触发推荐
+  ↓
+searchTracks(mood 搜索词) → 获取歌曲列表
+  ↓
+fillTrackUrls(tracks) → 不传 cookie
+  ↓
+服务端无法识别用户身份 → VIP 歌曲返回 null URL
+  ↓
+过滤掉 VIP/付费歌曲 → 只保留免费歌曲
+  ↓
+vipTracks = 空 → 跳过 VIP 替换
+  ↓
+getDailyRecommendations() → 无 cookie → 降级为热歌榜
+  ↓
+返回推荐结果（全部为免费歌曲）
+```
+
+**特点：**
+- 歌曲来源：关键词搜索 + 热歌榜
+- 歌曲类型：仅免费歌曲
+- 个性化程度：低（仅基于 Mood 搜索词）
+
+### 10.3 已授权非 VIP 推荐流程
+
+```
+用户触发推荐
+  ↓
+searchTracks(mood 搜索词) → 获取歌曲列表
+  ↓
+fillTrackUrls(tracks) → 传入 cookie
+  ↓
+服务端识别用户身份（非 VIP）→ VIP 歌曲返回 null URL + freeTrialInfo
+  ↓
+分离：playableTracks（免费歌曲）+ vipTracks（VIP 歌曲）
+  ↓
+VIP 替换：提取 vipTracks 的艺术家名
+  → 「艺术家 + mood 修饰词」搜索
+  → fillTrackUrls 过滤 → 只保留免费替代歌曲
+  → 标记 source='daily'，插入队列前端
+  ↓
+getDailyRecommendations() → 携带 cookie → 获取个性化每日推荐
+  ↓
+混入每日推荐歌曲（标记 source='daily'）
+  ↓
+返回推荐结果（免费歌曲 + VIP 替换歌曲 + 每日推荐）
+```
+
+**特点：**
+- 歌曲来源：关键词搜索 + 每日推荐 + VIP 替换
+- 歌曲类型：免费歌曲 + VIP 歌曲的免费替代
+- 个性化程度：中（Mood 搜索 + 每日推荐 + VIP 替换）
+
+### 10.4 已授权 VIP/SVIP 推荐流程
+
+```
+用户触发推荐
+  ↓
+searchTracks(mood 搜索词) → 获取歌曲列表
+  ↓
+fillTrackUrls(tracks) → 传入 cookie
+  ↓
+服务端识别用户身份（VIP/SVIP）→ VIP 歌曲返回完整播放链接
+  ↓
+所有歌曲（含 VIP）都有 playUrl → vipTracks = 空
+  ↓
+跳过 VIP 替换（VIP 用户可直接播放 VIP 歌曲）
+  ↓
+getDailyRecommendations() → 携带 cookie → 获取个性化每日推荐
+  ↓
+混入每日推荐歌曲（标记 source='daily'）
+  ↓
+返回推荐结果（全部歌曲含 VIP + 每日推荐）
+```
+
+**特点：**
+- 歌曲来源：关键词搜索 + 每日推荐
+- 歌曲类型：全部歌曲（含 VIP）
+- 个性化程度：高（Mood 搜索 + 每日推荐 + VIP 曲库）
+
+### 10.5 VIP 替换逻辑详解
+
+当非 VIP 用户搜索到 VIP 歌曲时，系统自动搜索同艺术家的免费替代歌曲：
+
+```
+VIP 歌曲: [周杰伦-晴天, 林俊杰-江南, ...]
+  ↓
+提取艺术家名: ['周杰伦', '林俊杰']
+  ↓
+生成搜索词: ['周杰伦 钢琴', '林俊杰 纯音乐']（结合当前 Mood 修饰词）
+  ↓
+searchTracks → 获取结果
+  ↓
+fillTrackUrls → 过滤掉仍是 VIP 的歌曲
+  ↓
+得到免费替代歌曲 → 标记 source='daily'
+  ↓
+插入队列前端（优先于搜索结果，确保不被 slice 截断）
+```
+
+**替换规则：**
+- 最多取 3 个艺术家进行搜索（避免请求过多）
+- 每个艺术家随机搭配一个 Mood 修饰词
+- 替换歌曲标记为 `source: 'daily'`，前端显示「推荐」标签
+- 替换歌曲插入队列前端，确保在 `slice(0, 50)` 中保留
+
+### 10.6 切歌时的状态一致性
+
+「换歌」/「换一组」操作严格遵守用户当前状态：
+
+```
+前端 getCurrentMood()
+  → 读取 manualState（手动状态优先）
+  → 映射为 CodingMoodState
+  → 无手动状态时返回 'neutral'
+  ↓
+fetchRecommendation(mood, refresh=true, includeDaily=false, currentTrackId)
+  ↓
+后端 recommend() 使用传入的 mood
+  → fetchTracksByMood(mood) → mood 专属搜索词
+  → getSimilarTracks(currentTrackId) → 基于当前歌曲的相似推荐
+  → fillTrackUrls → VIP 处理
+  → 返回符合当前状态的推荐结果
+```
+
+---
+
+## 十一、异常处理
 
 ### 10.1 推荐失败
 
@@ -484,7 +627,7 @@ sessionPreferences: ["focus"]  // 临时偏好（优先级最高）
 
 ---
 
-## 十一、配置项
+## 十二、配置项
 
 ### 11.1 搜索配置
 
@@ -520,7 +663,7 @@ sessionPreferences: ["focus"]  // 临时偏好（优先级最高）
 
 ---
 
-## 十二、相关代码位置
+## 十三、相关代码位置
 
 | 模块 | 文件路径 |
 |------|---------|
