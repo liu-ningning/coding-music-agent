@@ -173,9 +173,11 @@ export class MusicService {
           const dailyTracksWithSource = playableDaily.map(t => ({ ...t, source: 'daily' as const }));
           // 过滤已播放歌曲
           const playedSet = new Set(playedTrackIds);
-          const filteredDaily = dailyTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
-          // 搜索结果放前面（mood 相关），每日推荐放后面（补充）
-          tracks = [...tracks, ...filteredDaily];
+          let filteredDaily = dailyTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
+          // 搜索结果严格遵守 mood，每日推荐用黑名单过滤后补充
+          filteredDaily = this.filterByMoodBlacklist(filteredDaily, mood);
+          // 推荐歌曲在前，搜索结果在后
+          tracks = [...filteredDaily, ...tracks];
           source = 'netease+daily';
           log.info(`混入每日推荐: ${filteredDaily.length} 首, 总计 ${tracks.length} 首`);
         }
@@ -194,7 +196,32 @@ export class MusicService {
           const similarTracksWithSource = similarTracks.map(t => ({ ...t, source: 'similar' as const }));
           // 过滤已播放歌曲
           const playedSet = new Set(playedTrackIds);
-          const filteredSimilar = similarTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
+          let filteredSimilar = similarTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
+          // 用搜索结果的艺术家作为白名单验证相似歌曲是否匹配 mood
+          filteredSimilar = this.filterByMoodMatch(filteredSimilar, tracks, mood);
+          // 相似歌曲放在前面
+          tracks = [...filteredSimilar, ...tracks];
+          source = 'netease+similar';
+          log.info(`混入相似歌曲: ${filteredSimilar.length} 首, 总计 ${tracks.length} 首`);
+        }
+      } catch (e) {
+        // 相似歌曲失败不影响整体推荐
+        log.warn(`获取相似歌曲失败: ${e}`);
+      }
+    }
+
+    // 切歌时（有 currentTrackId），获取相似歌曲
+    if (authStatus.connected && currentTrackId && !includeDaily) {
+      try {
+        const similarTracks = await this.provider.getSimilarTracks(currentTrackId);
+        if (similarTracks.length > 0) {
+          // 标记相似歌曲来源
+          const similarTracksWithSource = similarTracks.map(t => ({ ...t, source: 'similar' as const }));
+          // 过滤已播放歌曲
+          const playedSet = new Set(playedTrackIds);
+          let filteredSimilar = similarTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
+          // 按 mood 过滤不匹配的相似歌曲
+          filteredSimilar = this.filterByMoodBlacklist(filteredSimilar, mood);
           // 相似歌曲放在前面
           tracks = [...filteredSimilar, ...tracks];
           source = 'netease+similar';
@@ -208,15 +235,32 @@ export class MusicService {
 
     if (tracks.length === 0) {
       try {
-        tracks = (await this.provider.getHotTracks()).map(t => ({ ...t, source: 'hot' as const }));
+        let hotTracks = (await this.provider.getHotTracks()).map(t => ({ ...t, source: 'hot' as const }));
+        // 按 mood 过滤不匹配的热歌
+        hotTracks = this.filterByMoodBlacklist(hotTracks, mood);
+        tracks = hotTracks;
         source = 'hot';
       } catch {}
     }
 
     if (tracks.length > 0) {
+      // 统计 fillTrackUrls 前的来源分布
+      const preSourceCounts = tracks.reduce((acc, t) => {
+        acc[t.source || 'unknown'] = (acc[t.source || 'unknown'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      log.info(`[recommend] fillTrackUrls 前: ${JSON.stringify(preSourceCounts)}`);
+
       const { playableTracks, vipTracks } = await this.provider.fillTrackUrls(tracks);
       log.info(`[recommend] fillTrackUrls: 总 ${tracks.length} 首 → 可播放 ${playableTracks.length} 首, VIP ${vipTracks.length} 首`);
       tracks = playableTracks;
+
+      // 验证赋值后的 source 分布
+      const postAssignCounts = tracks.reduce((acc, t) => {
+        acc[t.source || 'unknown'] = (acc[t.source || 'unknown'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      log.info(`[recommend] 赋值后: ${JSON.stringify(postAssignCounts)}`);
 
       // 用被过滤的 VIP 歌曲的艺术家名搜索免费替代歌曲（仅已授权用户）
       if (authStatus.connected && vipTracks.length > 0) {
@@ -240,9 +284,23 @@ export class MusicService {
       }
     }
 
+    // 最终严格 mood 过滤：所有来源的歌曲都必须通过黑名单检查
+    const beforeFilter = tracks.length;
+    tracks = this.filterByMoodBlacklist(tracks, mood);
+    const afterFilter = tracks.length;
+    if (beforeFilter !== afterFilter) {
+      log.info(`最终 mood 过滤: ${beforeFilter} → ${afterFilter} 首 (移除 ${beforeFilter - afterFilter} 首不匹配)`);
+    }
+
+    // 刷新时打乱顺序，让每次歌单都有变化
+    if (refresh) {
+      tracks = this.shuffleArray(tracks);
+    }
+
     const atmosphere = this.moodToAtmosphere(mood);
     const reason = this.generateReason(mood, source, preferences);
-    const finalTracks = tracks.slice(0, 50);
+
+    const finalTracks = tracks;
 
     // 统计各来源数量
     const sourceCounts = finalTracks.reduce((acc, t) => {
@@ -632,6 +690,113 @@ export class MusicService {
       neutral: ['纯音乐', '轻音乐', 'ambient', '钢琴'],
     };
     return modifiers[mood] || modifiers.neutral;
+  }
+
+  /**
+   * 用搜索结果的艺术家作为白名单，验证非搜索歌曲是否匹配当前 mood
+   * 搜索结果是严格遵守 mood 的，用它的艺术家来验证每日推荐/相似歌曲
+   */
+  private filterByMoodMatch<T extends MusicTrack>(tracks: T[], searchTracks: MusicTrack[], mood: CodingMoodState): T[] {
+    if (tracks.length === 0 || searchTracks.length === 0) return tracks;
+
+    // 提取搜索结果中的艺术家（已验证匹配 mood）
+    const searchArtists = new Set<string>();
+    for (const t of searchTracks) {
+      for (const artist of t.artists) {
+        if (artist && artist !== 'Unknown') {
+          searchArtists.add(artist.toLowerCase());
+        }
+      }
+    }
+
+    // 白名单 + 黑名单双重验证
+    const blacklist = this.getMoodBlacklist(mood);
+    const before = tracks.length;
+    const filtered = tracks.filter(t => {
+      const text = `${t.title} ${t.artists.join(' ')}`.toLowerCase();
+
+      // 黑名单命中 → 移除（即使艺术家匹配，歌曲本身不适合当前 mood）
+      if (blacklist.some(kw => text.includes(kw))) return false;
+
+      // 艺术家匹配搜索结果 → 保留
+      return t.artists.some(a => searchArtists.has(a.toLowerCase()));
+    });
+
+    const removed = before - filtered.length;
+    if (removed > 0) {
+      log.info(`mood 白名单过滤: ${mood} 移除 ${removed} 首艺术家不匹配歌曲`);
+    }
+
+    // 如果过滤后没有歌曲，降级用黑名单过滤（放宽标准）
+    if (filtered.length === 0) {
+      log.info(`mood 白名单过滤后为空，降级使用黑名单`);
+      return this.filterByMoodBlacklist(tracks, mood);
+    }
+
+    return filtered;
+  }
+
+  /**
+   * 按 mood 黑名单过滤歌曲（标题/艺术家包含不匹配关键词的歌曲被移除）
+   */
+  private filterByMoodBlacklist<T extends MusicTrack>(tracks: T[], mood: CodingMoodState): T[] {
+    const blacklist = this.getMoodBlacklist(mood);
+    if (blacklist.length === 0) return tracks;
+    const before = tracks.length;
+    const filtered = tracks.filter(t => {
+      const text = `${t.title} ${t.artists.join(' ')}`.toLowerCase();
+      return !blacklist.some(kw => text.includes(kw));
+    });
+    const removed = before - filtered.length;
+    if (removed > 0) {
+      log.info(`mood 过滤: ${mood} 移除 ${removed} 首不匹配歌曲`);
+    }
+    return filtered;
+  }
+
+  /**
+   * 获取 mood 不匹配的关键词黑名单
+   * 当歌曲标题/艺术家包含这些关键词时，认为与当前 mood 不匹配
+   */
+  private getMoodBlacklist(mood: CodingMoodState): string[] {
+    const blacklist: Record<CodingMoodState, string[]> = {
+      late_night_flow: [
+        '快乐', '活力', '动感', '节拍', '越来越', 'high', '嗨', '狂欢', '派对', '舞曲', 'edm', '电音',
+        '高兴', '兴奋', '激动', '热闹', '欢乐', '开心', '幸福', '喜悦', '蹦迪', '加油', '奋斗', '拼搏',
+        'upbeat', 'energetic', 'dance', 'party', 'celebrate', 'cheerful', 'joyful', 'lively',
+        '我的未来', '向前冲', '一起摇', '燥起来',
+      ],
+      debug_calm: [
+        '吵', '燥', '摇滚', '金属', '嘶吼', '炸', '爆', '嗨', '狂欢', '动感', '节拍',
+        'loud', 'noisy', 'aggressive', 'scream', 'shout',
+      ],
+      deep_refactor: [
+        '吵', '燥', '摇滚', '嘶吼', '炸', '爆', '嗨', '狂欢', '动感', '节拍',
+        'loud', 'noisy', 'aggressive',
+      ],
+      review_focus: [
+        '吵', '燥', '摇滚', '嘶吼', '炸', '爆', '嗨', '动感', '节拍', '狂欢',
+        'loud', 'noisy', 'aggressive', 'dance', 'party',
+      ],
+      emergency_focus: [
+        '吵', '燥', '摇滚', '嘶吼', '炸', '爆', '嗨', '动感', '节拍', '狂欢',
+        'loud', 'noisy', 'aggressive', 'dance', 'party',
+      ],
+      low_energy: [
+        '嗨', '狂欢', '派对', '炸', '爆', '动感', '节拍', 'edm', '电音', '摇滚',
+        'loud', 'noisy', 'aggressive', 'dance', 'party', 'energetic',
+      ],
+      recovery_mode: [
+        '嗨', '狂欢', '炸', '爆', '嘶吼', '动感', '节拍', '摇滚',
+        'loud', 'noisy', 'aggressive',
+      ],
+      feature_flow: [
+        '悲伤', '哭泣', '心碎', '离别', '分手', '哀', '愁', '泪', '伤',
+        'sad', 'cry', 'heartbreak', 'tears', 'sorrow', 'melancholy',
+      ],
+      neutral: [],
+    };
+    return blacklist[mood] || [];
   }
 
   /**

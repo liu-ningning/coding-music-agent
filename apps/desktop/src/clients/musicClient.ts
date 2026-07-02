@@ -129,8 +129,9 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
     const playableTracks = recommendation.tracks.filter(t => t.playUrl);
     debugInfo(MODULE, `获取 ${recommendation.tracks.length} 首, ${playableTracks.length} 可播放`);
 
-    // 更新 store（setRecommendation 内部已设置 queue 和 mode，无需单独调用 setQueue）
-    const { setRecommendation } = useMusicStore.getState();
+    // 更新 store（setRecommendation 内部已设置 queue 和 mode）
+    const { setRecommendation, setActiveSession } = useMusicStore.getState();
+    setActiveSession(sessionId);
     setRecommendation(sessionId, recommendation);
 
     // 更新氛围

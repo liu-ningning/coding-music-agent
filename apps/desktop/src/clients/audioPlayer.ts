@@ -76,12 +76,16 @@ class AudioPlayerManager {
     this.audio.onpause = () => {
       if (this.audio) {
         const { duration, currentTime, ended } = this.audio;
-        if (ended || (duration > 0 && currentTime >= duration - 2)) return;
+        if (ended || (duration > 0 && currentTime >= duration - 2)) {
+          debugInfo(MODULE, `onpause: 曲目结束 (ended=${ended}, currentTime=${currentTime.toFixed(1)}, duration=${duration.toFixed(1)})`);
+          return;
+        }
       }
       this.syncState('paused');
     };
 
     this.audio.onended = () => {
+      debugInfo(MODULE, 'onended 触发');
       this.handleTrackEnd();
     };
 
@@ -102,10 +106,17 @@ class AudioPlayerManager {
       if (!this.audio || this.endedHandled) return;
 
       const { duration, currentTime, ended, paused, readyState } = this.audio;
-      if (paused || readyState < 2) return;
+
+      // 先检查结束状态（浏览器可能先设 paused=true 再触发 ended）
+      if (ended) {
+        this.handleTrackEnd();
+        return;
+      }
+
+      if (readyState < 2) return;
       if (currentTime <= 0 || duration <= 0 || !isFinite(duration)) return;
 
-      if (ended || currentTime >= duration - 1.5) {
+      if (currentTime >= duration - 1.5) {
         this.handleTrackEnd();
         return;
       }
@@ -131,6 +142,9 @@ class AudioPlayerManager {
     this.lastCurrentTime = -1;
     this.stuckCount = 0;
 
+    const trackTitle = this.currentTrackId || '未知';
+    debugInfo(MODULE, `曲目结束: ${trackTitle}，准备下一首`);
+
     try {
       this.syncState('stopped');
       await this.next();
@@ -144,6 +158,7 @@ class AudioPlayerManager {
 
     if (this.currentTrackId === track.id && this.audio && !this.audio.paused) return;
 
+    debugInfo(MODULE, `playTrack: ${track.title} (playUrl=${track.playUrl ? '有' : '无'})`);
     this.currentTrackId = track.id;
     this.currentSessionId = useMusicStore.getState().activeSessionId;
     this.endedHandled = false;
@@ -161,7 +176,9 @@ class AudioPlayerManager {
     }).catch(() => {});
 
     if (!track.playUrl) {
-      debugWarn(MODULE, `无播放地址: ${track.title}`);
+      debugWarn(MODULE, `无播放地址: ${track.title}，跳过`);
+      // 无播放地址时自动跳到下一首，避免中断自动播放链
+      setTimeout(() => this.next(), 100);
       return;
     }
 
@@ -267,19 +284,35 @@ class AudioPlayerManager {
 
   async next() {
     const sessionId = this.currentSessionId || useMusicStore.getState().activeSessionId;
-    if (!sessionId) return;
+    if (!sessionId) {
+      debugWarn(MODULE, `next: 无 sessionId (currentSessionId=${this.currentSessionId}, activeSessionId=${useMusicStore.getState().activeSessionId})`);
+      return;
+    }
 
     const sessions = useMusicStore.getState().sessions;
     const sessionData = sessions[sessionId];
-    if (!sessionData || sessionData.queue.length === 0) return;
+    if (!sessionData) {
+      debugWarn(MODULE, `next: session 不存在 (sessionId=${sessionId})`);
+      return;
+    }
+    if (sessionData.queue.length === 0) {
+      debugWarn(MODULE, `next: 队列为空 (sessionId=${sessionId})`);
+      return;
+    }
 
+    debugInfo(MODULE, `next: 队列 ${sessionData.queue.length} 首, 当前索引 ${sessionData.currentIndex}`);
     useMusicStore.getState().nextTrack(sessionId);
 
     const updated = useMusicStore.getState().sessions[sessionId];
     const idx = updated?.currentIndex ?? 0;
     const track = updated?.queue[idx];
 
-    if (track) await this.playTrack(track);
+    if (track) {
+      debugInfo(MODULE, `next: 播放 ${track.title} (${idx + 1}/${updated?.queue.length}, playUrl=${track.playUrl ? '有' : '无'})`);
+      await this.playTrack(track);
+    } else {
+      debugWarn(MODULE, `next: 无歌曲 (idx=${idx}, queueLen=${updated?.queue.length})`);
+    }
   }
 
   setVolume(v: number) {

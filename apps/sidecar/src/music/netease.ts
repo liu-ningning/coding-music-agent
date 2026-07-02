@@ -568,6 +568,8 @@ export class NeteaseMusicProvider implements MusicProvider {
         let noUrlCount = 0;
         let vipTrialCount = 0;
         let paidTrialCount = 0;
+        let preservedDailyCount = 0;
+        let matchedDailyCount = 0;
 
         // 分离可播放歌曲和 VIP 歌曲
         const playableTracks: MusicTrack[] = [];
@@ -579,7 +581,19 @@ export class NeteaseMusicProvider implements MusicProvider {
 
           // 已有 playUrl 的歌曲（如每日推荐）直接保留，无需再查
           if (t.playUrl && !songInfo) {
+            if (t.source === 'daily') preservedDailyCount++;
             playableTracks.push(t);
+            continue;
+          }
+
+          // 已有 playUrl 但在 songInfoMap 中的歌曲（如每日推荐命中搜索结果）
+          // 保留原歌曲及其 source，用 songInfo 更新 playUrl
+          if (t.playUrl && songInfo) {
+            if (t.source === 'daily') matchedDailyCount++;
+            playableTracks.push({
+              ...t,
+              playUrl: url || t.playUrl,
+            });
             continue;
           }
 
@@ -619,6 +633,15 @@ export class NeteaseMusicProvider implements MusicProvider {
         const filteredCount = tracks.length - playableTracks.length;
         if (filteredCount > 0) {
           log.info(`过滤掉 ${filteredCount} 首歌曲: 无URL=${noUrlCount}, VIP试听=${vipTrialCount}, 付费试听=${paidTrialCount}`);
+        }
+        if (preservedDailyCount > 0 || matchedDailyCount > 0) {
+          log.info(`每日推荐保留: 直接保留=${preservedDailyCount}, 命中搜索=${matchedDailyCount}`);
+        }
+
+        // 验证返回的 playableTracks 中 daily 歌曲数量
+        const returnedDaily = playableTracks.filter(t => t.source === 'daily').length;
+        if (returnedDaily > 0) {
+          log.info(`fillTrackUrls 返回: ${playableTracks.length} 首, 其中 daily=${returnedDaily}`);
         }
 
         return { playableTracks, vipTracks };
