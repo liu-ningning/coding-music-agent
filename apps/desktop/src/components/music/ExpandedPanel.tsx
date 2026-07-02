@@ -3,7 +3,6 @@ import { useMusicStore } from '@/stores/musicStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
-import { FeedbackButtons } from './FeedbackButtons';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { IconPlay, IconPause, IconNext, IconChevronDown, IconChevronRight, IconCircleCheck, IconCircleX, IconCircle, IconLoading } from '@/components/common/Icons';
 import { SIDECAR_BASE } from '@/config';
@@ -338,14 +337,6 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
             <div className={s.expandedQueueEmpty}>暂无队列</div>
           )}
         </div>
-
-        {/* 反馈 - 固定 */}
-        {rec && sessionId && (
-          <div className={s.expandedFeedback}>
-            <div className={s.expandedSectionTitle}>反馈</div>
-            <FeedbackButtons recommendationId={rec.id} />
-          </div>
-        )}
 
         {/* Footer - 固定 */}
         <div className={s.expandedFooter}>

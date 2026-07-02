@@ -5,7 +5,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
 import { fetchRecommendation, getCurrentMood } from '@/clients/musicClient';
 import { RefreshIcon } from '@/components/common/RefreshIcon';
-import { IconPrevious, IconPlay, IconPause, IconNext, IconTarget, IconDislike, IconMusic, IconNight, IconVolume, IconVolumeMute, IconLyrics, IconLyricsOff } from '@/components/common/Icons';
+import { IconPrevious, IconPlay, IconPause, IconNext, IconMusic, IconVolume, IconVolumeMute, IconLyrics, IconLyricsOff } from '@/components/common/Icons';
 import { ExpandedPanel } from './ExpandedPanel';
 import s from '@/styles/layout.module.css';
 import { SIDECAR_BASE } from '@/config';
@@ -43,7 +43,6 @@ function formatTime(seconds: number): string {
 }
 
 export function MiniPlayerBar() {
-  const [showFeedback, setShowFeedback] = useState(false);
   const [showVolume, setShowVolume] = useState(false);
   const showExpanded = useMusicStore((st) => st.showExpandedPanel);
   const setShowExpanded = useMusicStore((st) => st.setShowExpandedPanel);
@@ -56,7 +55,6 @@ export function MiniPlayerBar() {
   const [currentLyric, setCurrentLyric] = useState<string>('');
   const [currentLyricIdx, setCurrentLyricIdx] = useState(-1);
   const progressRef = useRef<HTMLDivElement>(null);
-  const feedbackRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const lyricsPopupRef = useRef<HTMLDivElement>(null);
   const lyricsCurrentRef = useRef<HTMLDivElement>(null);
@@ -89,27 +87,6 @@ export function MiniPlayerBar() {
     }, 250);
     return () => clearInterval(timer);
   }, [isDragging]);
-
-  // 点击外部关闭反馈弹窗
-  useEffect(() => {
-    if (!showFeedback) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (feedbackRef.current && !feedbackRef.current.contains(e.target as Node)) {
-        setShowFeedback(false);
-      }
-    };
-
-    // 延迟添加监听，避免当前点击立即触发
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 0);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showFeedback]);
 
   // 点击外部关闭音量弹窗
   useEffect(() => {
@@ -294,32 +271,6 @@ export function MiniPlayerBar() {
     }
   };
 
-  const handleFeedback = async (action: 'dislike' | 'more_focus' | 'more_relaxed') => {
-    if (!sessionId || !rec) return;
-
-    try {
-      await fetch(`${SIDECAR_BASE}/music/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, recommendationId: rec.id, action }),
-      });
-    } catch {}
-
-    if (action === 'dislike') {
-      audioPlayer.next();
-    } else {
-      const mood = action === 'more_focus' ? 'feature_flow' : 'low_energy';
-      await fetchRecommendation(mood);
-      const { sessions } = useMusicStore.getState();
-      const data = sessions[sessionId];
-      if (data?.queue.length) {
-        await audioPlayer.playTrack(data.queue[0]);
-      }
-    }
-
-    setShowFeedback(false);
-  };
-
   // 音量调节
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
@@ -444,28 +395,7 @@ export function MiniPlayerBar() {
         <button className={s.playerBtn} onClick={handleChangeSet} disabled={!sessionId} title="换一组">
           <RefreshIcon size={14} />
         </button>
-        <button className={s.playerBtn} onClick={() => setShowFeedback(!showFeedback)} disabled={!sessionId} title="反馈">
-          <IconTarget size={14} />
-        </button>
       </div>
-
-      {/* 快捷反馈弹出 */}
-      {showFeedback && (
-        <div className={s.feedbackPopup} ref={feedbackRef}>
-          <button className={s.feedbackPopupBtn} onClick={() => handleFeedback('more_focus')}>
-            <IconTarget size={14} />
-            <span>专注</span>
-          </button>
-          <button className={s.feedbackPopupBtn} onClick={() => handleFeedback('more_relaxed')}>
-            <IconNight size={14} />
-            <span>放松</span>
-          </button>
-          <button className={s.feedbackPopupBtn} onClick={() => handleFeedback('dislike')}>
-            <IconDislike size={14} />
-            <span>跳过</span>
-          </button>
-        </div>
-      )}
 
       {/* 歌词弹窗 */}
       {showLyricsPopup && hasLyrics && (

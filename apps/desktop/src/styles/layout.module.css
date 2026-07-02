@@ -745,40 +745,6 @@
 }
 
 /* ── FeedbackPopup ── */
-.feedbackPopup {
-  position: absolute;
-  bottom: 100%;
-  right: 16px;
-  margin-bottom: 8px;
-  padding: 6px;
-  background: var(--color-bg-panel);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  display: flex;
-  gap: 4px;
-  box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
-  z-index: 100;
-}
-
-.feedbackPopupBtn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 10px;
-  transition: all 150ms;
-  white-space: nowrap;
-}
-
-.feedbackPopupBtn:hover {
-  background: var(--color-bg-elevated);
-  color: var(--color-text-primary);
-}
-
 /* ── AgentConsole ── */
 .console {
   display: flex;
@@ -1313,15 +1279,6 @@
   gap: 1px;
 }
 
-.expandedFeedback {
-  flex-shrink: 0;
-  padding: 12px 16px;
-  border-top: 1px solid var(--color-border-subtle);
-  background: var(--color-bg-panel);
-  overflow: visible;
-  max-height: 75px;
-}
-
 .expandedSectionTitle {
   font-size: 11px;
   color: var(--color-text-muted);
@@ -1492,44 +1449,6 @@
   font-size: 11px;
 }
 .expandedFooterBtn:hover { text-decoration: underline; }
-
-/* ── FeedbackButtons ── */
-.feedbackGroup {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
-  position: relative;
-  min-height: 28px;
-}
-
-.feedbackGroup::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
-}
-
-.feedbackBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 5px 10px;
-  min-width: 68px;
-  border-radius: 9999px;
-  font-size: 10px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border-subtle);
-  white-space: nowrap;
-  transition: all 150ms;
-}
-.feedbackBtn:hover { background: rgba(255,255,255,0.1); }
-.feedbackBtnActive {
-  background: var(--color-accent);
-  color: white;
-  border-color: var(--color-accent);
-}
 
 /* ── TopStrip ── */
 .topStrip {
@@ -2454,28 +2373,6 @@
 
 .warmuppending {
   color: var(--color-text-muted);
-}
-
-/* ── 去重提示 ── */
-.dedupHint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
-  padding: 6px 12px;
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-md);
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  text-align: center;
-  animation: dedupFadeIn 300ms ease;
-  z-index: 10;
-  pointer-events: none;
-}
-
-@keyframes dedupFadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── 二维码弹窗 ── */
