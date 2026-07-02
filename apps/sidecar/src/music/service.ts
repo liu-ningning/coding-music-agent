@@ -39,6 +39,9 @@ export class MusicService {
   private currentPlayback: PlaybackState = { status: 'stopped', volume: 30 };
   private trackCache: Map<string, MusicTrack[]> = new Map();
 
+  // 会话级累积排除列表：每次刷新把当前歌单歌曲加入，避免反复推荐相同歌曲
+  private sessionRecommendedTracks: Map<string, Set<string>> = new Map();
+
   // 预热状态
   private warmupStatus: Map<CodingMoodState, 'pending' | 'warming' | 'ready' | 'failed'> = new Map();
   private warmupInProgress = false;
@@ -143,9 +146,15 @@ export class MusicService {
     await this.provider.logout();
   }
 
-  async recommend(sessionId: string, mood: CodingMoodState, refresh: boolean = false, preferences: string[] = [], playedTrackIds: string[] = [], includeDaily: boolean = true, currentTrackId?: string): Promise<MusicRecommendation> {
+  async recommend(sessionId: string, mood: CodingMoodState, refresh: boolean = false, preferences: string[] = [], playedTrackIds: string[] = [], includeDaily: boolean = true, currentTrackId?: string, excludeTrackIds: string[] = []): Promise<MusicRecommendation> {
     let tracks: MusicTrack[] = [];
     let source = 'netease';
+
+    // 合并累积排除列表和本次请求的排除列表
+    const accumulated = this.sessionRecommendedTracks.get(sessionId) || new Set<string>();
+    const mergedExcludeSet = new Set([...accumulated, ...excludeTrackIds]);
+    if (currentTrackId) mergedExcludeSet.add(currentTrackId);
+    log.info(`排除列表: 累积 ${accumulated.size} 首 + 本次 ${excludeTrackIds.length} 首 = 合并 ${mergedExcludeSet.size} 首`);
 
     try {
       // 切歌/切换状态时（includeDaily=false），强制 refresh 并增加搜索随机性
@@ -160,6 +169,50 @@ export class MusicService {
     // 标记搜索结果来源
     tracks = tracks.map(t => ({ ...t, source: 'search' as const }));
 
+    // 搜索结果 mood 过滤
+    tracks = this.filterByMoodBlacklist(tracks, mood);
+
+    // 排除累积+本次的歌曲
+    if (mergedExcludeSet.size > 0) {
+      const beforeCount = tracks.length;
+      tracks = tracks.filter(t => !mergedExcludeSet.has(t.providerTrackId));
+      if (beforeCount !== tracks.length) {
+        log.info(`排除重复歌曲: ${beforeCount} → ${tracks.length} 首 (移除 ${beforeCount - tracks.length} 首)`);
+      }
+    }
+
+    // 保底 50 首：不够时用更多关键词搜索补充，不排除条件不放宽
+    const MIN_TRACKS = 50;
+    const existingIds = new Set(tracks.map(t => t.providerTrackId));
+    let extraSearchRounds = 0;
+    const MAX_EXTRA_ROUNDS = 8;
+    while (tracks.length < MIN_TRACKS && extraSearchRounds < MAX_EXTRA_ROUNDS) {
+      extraSearchRounds++;
+      try {
+        // 每轮用不同的随机关键词，避免重复搜索
+        const extraQueries = [
+          ...this.generateRandomQueries(5),
+          ...this.shuffleArray([...(this.EXTENDED_MOOD_QUERIES[mood] || this.EXTENDED_MOOD_QUERIES.neutral)]).slice(0, 3),
+        ];
+        const extraTracks = await this.fetchTracksByMood(mood, true, preferences, playedTrackIds, sessionId, extraQueries);
+        const extraFiltered = extraTracks
+          .map(t => ({ ...t, source: 'search' as const }))
+          .filter(t => !mergedExcludeSet.has(t.providerTrackId) && !existingIds.has(t.providerTrackId));
+        // 补充搜索结果也要 mood 过滤
+        const extraMoodFiltered = this.filterByMoodBlacklist(extraFiltered, mood);
+        if (extraMoodFiltered.length === 0) {
+          log.warn(`补充搜索第 ${extraSearchRounds} 轮无新歌曲，停止`);
+          break;
+        }
+        extraMoodFiltered.forEach(t => existingIds.add(t.providerTrackId));
+        tracks = [...tracks, ...extraMoodFiltered];
+        log.info(`补充搜索第 ${extraSearchRounds} 轮: +${extraMoodFiltered.length} 首, 总计 ${tracks.length} 首`);
+      } catch (e) {
+        log.warn(`补充搜索第 ${extraSearchRounds} 轮失败: ${e}`);
+        break;
+      }
+    }
+
     // 已登录且需要混入每日推荐时，混入每日推荐歌曲（增加个性化）
     // includeDaily 为 true 时混入每日推荐
     const authStatus = await this.provider.getAuthStatus();
@@ -171,9 +224,9 @@ export class MusicService {
           const { playableTracks: playableDaily } = await this.provider.fillTrackUrls(dailyTracks);
           // 标记每日推荐来源
           const dailyTracksWithSource = playableDaily.map(t => ({ ...t, source: 'daily' as const }));
-          // 过滤已播放歌曲
+          // 过滤已播放歌曲和累积排除歌曲
           const playedSet = new Set(playedTrackIds);
-          let filteredDaily = dailyTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
+          let filteredDaily = dailyTracksWithSource.filter(t => !playedSet.has(t.providerTrackId) && !mergedExcludeSet.has(t.providerTrackId));
           // 搜索结果严格遵守 mood，每日推荐用黑名单过滤后补充
           filteredDaily = this.filterByMoodBlacklist(filteredDaily, mood);
           // 推荐歌曲在前，搜索结果在后
@@ -199,29 +252,6 @@ export class MusicService {
           let filteredSimilar = similarTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
           // 用搜索结果的艺术家作为白名单验证相似歌曲是否匹配 mood
           filteredSimilar = this.filterByMoodMatch(filteredSimilar, tracks, mood);
-          // 相似歌曲放在前面
-          tracks = [...filteredSimilar, ...tracks];
-          source = 'netease+similar';
-          log.info(`混入相似歌曲: ${filteredSimilar.length} 首, 总计 ${tracks.length} 首`);
-        }
-      } catch (e) {
-        // 相似歌曲失败不影响整体推荐
-        log.warn(`获取相似歌曲失败: ${e}`);
-      }
-    }
-
-    // 切歌时（有 currentTrackId），获取相似歌曲
-    if (authStatus.connected && currentTrackId && !includeDaily) {
-      try {
-        const similarTracks = await this.provider.getSimilarTracks(currentTrackId);
-        if (similarTracks.length > 0) {
-          // 标记相似歌曲来源
-          const similarTracksWithSource = similarTracks.map(t => ({ ...t, source: 'similar' as const }));
-          // 过滤已播放歌曲
-          const playedSet = new Set(playedTrackIds);
-          let filteredSimilar = similarTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
-          // 按 mood 过滤不匹配的相似歌曲
-          filteredSimilar = this.filterByMoodBlacklist(filteredSimilar, mood);
           // 相似歌曲放在前面
           tracks = [...filteredSimilar, ...tracks];
           source = 'netease+similar';
@@ -270,9 +300,10 @@ export class MusicService {
             // 过滤已播放和已有的歌曲
             const playedSet = new Set(playedTrackIds);
             const existingIds = new Set(tracks.map(t => t.providerTrackId));
-            const filtered = replacementTracks
+            let filtered = replacementTracks
               .filter(t => !playedSet.has(t.providerTrackId) && !existingIds.has(t.providerTrackId))
-              .map(t => ({ ...t, source: 'vip_replacement' as const })); // 标记为 VIP 免费替代
+              .map(t => ({ ...t, source: 'vip_replacement' as const }));
+            filtered = this.filterByMoodBlacklist(filtered, mood);
             tracks = [...filtered, ...tracks];
             log.info(`[recommend] VIP 替换: ${vipTracks.length} 首 VIP → ${filtered.length} 首免费替代 (source=daily)`);
           } else {
@@ -292,15 +323,40 @@ export class MusicService {
       log.info(`最终 mood 过滤: ${beforeFilter} → ${afterFilter} 首 (移除 ${beforeFilter - afterFilter} 首不匹配)`);
     }
 
-    // 刷新时打乱顺序，让每次歌单都有变化
-    if (refresh) {
-      tracks = this.shuffleArray(tracks);
+    // 刷新时：基于当前歌曲获取相似歌曲，确保每次刷新有新内容且遵守 mood
+    if (refresh && currentTrackId) {
+      try {
+        const similarTracks = await this.provider.getSimilarTracks(currentTrackId);
+        if (similarTracks.length > 0) {
+          const similarWithSource = similarTracks.map(t => ({ ...t, source: 'similar' as const }));
+          const playedSet = new Set(playedTrackIds);
+          const existingIds = new Set(tracks.map(t => t.providerTrackId));
+          // 过滤已播放、已存在、累积排除、不匹配 mood 的歌曲
+          let filtered = similarWithSource
+            .filter(t => !playedSet.has(t.providerTrackId) && !existingIds.has(t.providerTrackId) && !mergedExcludeSet.has(t.providerTrackId));
+          filtered = this.filterByMoodBlacklist(filtered, mood);
+          // 相似歌曲放前面，保证刷新后优先听到新推荐
+          tracks = [...filtered, ...tracks];
+          log.info(`刷新时混入相似歌曲: ${filtered.length} 首 (基于 ${currentTrackId}), 总计 ${tracks.length} 首`);
+        }
+      } catch (e) {
+        log.warn(`刷新时获取相似歌曲失败: ${e}`);
+      }
+
     }
 
     const atmosphere = this.moodToAtmosphere(mood);
     const reason = this.generateReason(mood, source, preferences);
 
     const finalTracks = tracks;
+
+    // 将本次推荐的歌曲加入累积排除列表，下次刷新不会再推荐
+    if (refresh) {
+      const updated = new Set(accumulated);
+      finalTracks.forEach(t => updated.add(t.providerTrackId));
+      this.sessionRecommendedTracks.set(sessionId, updated);
+      log.info(`累积排除列表更新: ${updated.size} 首 (本次新增 ${finalTracks.length} 首)`);
+    }
 
     // 统计各来源数量
     const sourceCounts = finalTracks.reduce((acc, t) => {
@@ -514,7 +570,7 @@ export class MusicService {
     };
   }
 
-  private async fetchTracksByMood(mood: CodingMoodState, refresh: boolean = false, preferences: string[] = [], playedTrackIds: string[] = [], sessionId?: string): Promise<MusicTrack[]> {
+  private async fetchTracksByMood(mood: CodingMoodState, refresh: boolean = false, preferences: string[] = [], playedTrackIds: string[] = [], sessionId?: string, extraQueries?: string[]): Promise<MusicTrack[]> {
     // 不使用缓存时，清除该 mood 的缓存
     if (refresh) {
       this.trackCache.delete(mood);
@@ -529,8 +585,10 @@ export class MusicService {
       // 如果缓存中的歌曲都已播放，继续获取新歌曲
     }
 
-    // 获取搜索关键词（refresh 时打乱顺序）
-    let queries = this.moodToSearchQueries(mood);
+    // 获取搜索关键词：有 extraQueries 时用它，否则用标准查询
+    let queries = extraQueries && extraQueries.length > 0
+      ? extraQueries
+      : this.moodToSearchQueries(mood);
 
     // 根据偏好调整搜索关键词
     if (preferences.length > 0) {
@@ -542,16 +600,12 @@ export class MusicService {
       queries = this.applyLearningWeights(queries, sessionId, mood);
     }
 
-    if (refresh) {
-      queries = this.shuffleArray([...queries]);
-    }
-
     let allTracks: MusicTrack[] = [];
 
     for (const query of queries) {
       const results = await this.provider.searchTracks(query);
       allTracks.push(...results);
-      if (allTracks.length >= 50) break;
+      if (allTracks.length >= 80) break;
     }
 
     // 去重（单次请求内）
@@ -571,11 +625,6 @@ export class MusicService {
     // 使用特征匹配排序歌曲
     if (preferences.length > 0 || mood) {
       allTracks = this.sortByFeatureMatch(allTracks, preferences, mood);
-    }
-
-    // 打乱顺序（refresh 时）
-    if (refresh) {
-      allTracks = this.shuffleArray(allTracks);
     }
 
     if (allTracks.length > 0) {

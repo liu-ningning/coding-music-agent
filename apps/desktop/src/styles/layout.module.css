@@ -1405,9 +1405,18 @@
   padding: 24px 0;
 }
 
+.expandedScrollSectionWrapper {
+  flex: 1;
+  display: grid;
+  min-height: 0;
+}
+
+.expandedScrollSectionWrapper > * {
+  grid-row: 1;
+  grid-column: 1;
+}
+
 .queueLoadingOverlay {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1421,6 +1430,7 @@
   border-radius: 8px;
   margin: 4px;
   animation: queueLoadingIn 200ms ease;
+  pointer-events: none;
 }
 
 .queueLoadingSpinner {

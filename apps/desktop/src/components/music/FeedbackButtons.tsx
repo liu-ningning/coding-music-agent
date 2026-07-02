@@ -71,7 +71,10 @@ export function FeedbackButtons({ recommendationId }: { recommendationId: string
 
         // 换一组时，获取相似歌曲（根据当前歌曲推荐相似的）
         const currentTrackId = playback.currentTrack?.providerTrackId;
-        await fetchRecommendation(getCurrentMood(), true, false, currentTrackId);
+        // 排除当前歌单所有歌曲，避免重复推荐
+        const currentQueue = useMusicStore.getState().sessions[sessionId]?.queue || [];
+        const excludeTrackIds = currentQueue.map(t => t.providerTrackId);
+        await fetchRecommendation(getCurrentMood(), true, false, currentTrackId, excludeTrackIds);
 
         // 显示去重提示
         if (playedCount > 0) {
@@ -83,7 +86,8 @@ export function FeedbackButtons({ recommendationId }: { recommendationId: string
         const { sessions } = useMusicStore.getState();
         const newData = sessions[sessionId];
         if (newData?.queue.length) {
-          await audioPlayer.playTrack(newData.queue[0]);
+          const firstTrack = newData.queue.find((t: any) => t.playUrl) || newData.queue[0];
+          await audioPlayer.playTrack(firstTrack, true);
         }
         break;
 

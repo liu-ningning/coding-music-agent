@@ -153,10 +153,11 @@ class AudioPlayerManager {
     }
   }
 
-  async playTrack(track: MusicTrack) {
+  async playTrack(track: MusicTrack, force: boolean = false) {
     if (!this.initialized) this.init();
 
-    if (this.currentTrackId === track.id && this.audio && !this.audio.paused) return;
+    // 非强制模式下，相同歌曲正在播放则跳过
+    if (!force && this.currentTrackId === track.id && this.audio && !this.audio.paused) return;
 
     debugInfo(MODULE, `playTrack: ${track.title} (playUrl=${track.playUrl ? '有' : '无'})`);
     this.currentTrackId = track.id;

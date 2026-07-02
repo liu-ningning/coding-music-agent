@@ -75,7 +75,7 @@ export function getCurrentMood(): CodingMoodState {
 }
 
 // 获取推荐
-export async function fetchRecommendation(mood?: CodingMoodState, refresh: boolean = false, includeDaily: boolean = true, currentTrackId?: string): Promise<MusicRecommendation | null> {
+export async function fetchRecommendation(mood?: CodingMoodState, refresh: boolean = false, includeDaily: boolean = true, currentTrackId?: string, excludeTrackIds?: string[]): Promise<MusicRecommendation | null> {
   const { current } = useSessionStore.getState();
   const sessionId = current?.id;
 
@@ -83,18 +83,25 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
 
   // 如果正在获取，等待当前请求完成
   if (fetching) {
+    // 刷新请求不等待，直接重新获取（确保每次刷新都能拿到新数据）
+    if (!refresh) {
+      while (fetching) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      const { sessions } = useMusicStore.getState();
+      const existing = sessions[sessionId]?.recommendation || null;
+      const existingMood = existing?.atmosphere?.mood;
+      const neededMood = mood || getCurrentMood();
+      // 如果请求的 mood 与已有推荐不同，重新获取（强制 refresh 避免用缓存）
+      if (existingMood && existingMood !== neededMood) {
+        return fetchRecommendation(mood, true, includeDaily, currentTrackId, excludeTrackIds);
+      }
+      return existing;
+    }
+    // refresh=true：等待当前请求结束后立即重新获取
     while (fetching) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    const { sessions } = useMusicStore.getState();
-    const existing = sessions[sessionId]?.recommendation || null;
-    const existingMood = existing?.atmosphere?.mood;
-    const neededMood = mood || getCurrentMood();
-    // 如果请求的 mood 与已有推荐不同，重新获取（强制 refresh 避免用缓存）
-    if (existingMood && existingMood !== neededMood) {
-      return fetchRecommendation(mood, true, includeDaily, currentTrackId);
-    }
-    return existing;
   }
 
   const targetMood = mood || getCurrentMood();
@@ -111,7 +118,7 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
     const res = await fetchWithRetry(`${SIDECAR_BASE}/music/recommend`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, mood: targetMood, refresh, preferences, playedTrackIds, includeDaily, currentTrackId }),
+      body: JSON.stringify({ sessionId, mood: targetMood, refresh, preferences, playedTrackIds, includeDaily, currentTrackId, excludeTrackIds }),
     });
 
     if (!res.ok) {
@@ -128,6 +135,9 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
 
     const playableTracks = recommendation.tracks.filter(t => t.playUrl);
     debugInfo(MODULE, `获取 ${recommendation.tracks.length} 首, ${playableTracks.length} 可播放`);
+
+    // 只保留可播放歌曲存入 queue，确保列表显示和实际播放一致
+    recommendation.tracks = playableTracks;
 
     // 更新 store（setRecommendation 内部已设置 queue 和 mode）
     const { setRecommendation, setActiveSession } = useMusicStore.getState();
@@ -169,16 +179,21 @@ export async function autoPlayRecommendation(): Promise<void> {
   await audioPlayer.playTrack(track);
 }
 
-// 刷新推荐（换一组）
+// 刷新推荐（换一组）：基于当前歌曲获取相似歌曲，确保每次刷新有新内容
 export async function refreshRecommendation(): Promise<void> {
   const { current } = useSessionStore.getState();
   const sessionId = current?.id;
   if (!sessionId) return;
 
   const mood = getCurrentMood();
-  const rec = await fetchRecommendation(mood, true);
+  const { playback, sessions } = useMusicStore.getState();
+  const currentTrackId = playback.currentTrack?.providerTrackId;
+  // 排除当前歌单所有歌曲，避免刷新后重复推荐
+  const excludeTrackIds = sessions[sessionId]?.queue?.map(t => t.providerTrackId) || [];
+  const rec = await fetchRecommendation(mood, true, true, currentTrackId, excludeTrackIds);
   if (rec && rec.tracks.length > 0) {
-    await audioPlayer.playTrack(rec.tracks[0]);
+    const firstTrack = rec.tracks.find(t => t.playUrl) || rec.tracks[0];
+    await audioPlayer.playTrack(firstTrack, true);
   }
 }
 

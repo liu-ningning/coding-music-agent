@@ -287,13 +287,14 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
         )}
 
         {/* 队列 - 可滚动区域 */}
-        <div className={s.expandedScrollSection} style={{ position: 'relative' }}>
+        <div className={s.expandedScrollSectionWrapper}>
           {recommendLoading && (
             <div className={s.queueLoadingOverlay}>
               <div className={s.queueLoadingSpinner} />
               <span>正在刷新歌单...</span>
             </div>
           )}
+          <div className={s.expandedScrollSection}>
           {queue.length > 0 ? (
             <>
               <div className={s.expandedSectionTitle}>队列 · {queue.length} 首</div>
@@ -345,6 +346,7 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
           ) : (
             <div className={s.expandedQueueEmpty}>暂无队列</div>
           )}
+          </div>
         </div>
 
         {/* Footer - 固定 */}
@@ -356,10 +358,13 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
             className={s.expandedFooterBtn}
             onClick={async () => {
               if (recommendLoading) return;
-              const rec = await fetchRecommendation(getCurrentMood(), true);
+              const currentTrackId = playback.currentTrack?.providerTrackId;
+              // 排除当前歌单所有歌曲，避免刷新后重复推荐
+              const excludeTrackIds = queue.map(t => t.providerTrackId);
+              const rec = await fetchRecommendation(getCurrentMood(), true, true, currentTrackId, excludeTrackIds);
               if (rec && rec.tracks.length > 0) {
                 const firstTrack = rec.tracks.find(t => t.playUrl) || rec.tracks[0];
-                await audioPlayer.playTrack(firstTrack);
+                await audioPlayer.playTrack(firstTrack, true);
               }
             }}
             style={{ opacity: recommendLoading ? 0.5 : 1 }}

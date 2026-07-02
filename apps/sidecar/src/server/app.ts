@@ -269,7 +269,7 @@ export function createServer(): Express {
 
   app.post('/music/recommend', async (req: Request, res: Response) => {
     try {
-      const { sessionId, mood, refresh, preferences, playedTrackIds, includeDaily, currentTrackId } = req.body as {
+      const { sessionId, mood, refresh, preferences, playedTrackIds, includeDaily, currentTrackId, excludeTrackIds } = req.body as {
         sessionId: string;
         mood: string;
         refresh?: boolean;
@@ -277,12 +277,13 @@ export function createServer(): Express {
         playedTrackIds?: string[];
         includeDaily?: boolean;
         currentTrackId?: string;
+        excludeTrackIds?: string[];
       };
       if (!sessionId || !mood) {
         res.status(400).json({ error: 'sessionId and mood are required' });
         return;
       }
-      const recommendation = await musicService.recommend(sessionId, mood as any, refresh || false, preferences || [], playedTrackIds || [], includeDaily !== false, currentTrackId);
+      const recommendation = await musicService.recommend(sessionId, mood as any, refresh || false, preferences || [], playedTrackIds || [], includeDaily !== false, currentTrackId, excludeTrackIds || []);
 
       // 用户首次请求推荐后，触发后台预热
       musicService.backgroundWarmup().catch(e => {
