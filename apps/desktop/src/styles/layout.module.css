@@ -409,6 +409,49 @@
   min-width: 0;
 }
 
+.playerCover {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  animation: coverSpin 8s linear infinite;
+  animation-play-state: paused;
+}
+
+.playerCoverSpinning {
+  animation-play-state: running;
+}
+
+.playerCoverPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: coverSpin 8s linear infinite;
+  animation-play-state: paused;
+}
+
+.playerCoverPlaceholderSpinning {
+  animation-play-state: running;
+}
+
+.playerCoverLetter {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+@keyframes coverSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .playerIcon { color: var(--color-text-muted); font-size: 14px; }
 
 .playerInfo { min-width: 0; flex: 1; }
@@ -1267,6 +1310,25 @@
   gap: 12px;
 }
 
+.expandedTrackCover {
+  width: 35px;
+  height: 35px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.expandedTrackCoverPlaceholder {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .expandedTrackInfo { flex: 1; min-width: 0; }
 
 .expandedTrackTitle {
@@ -1306,6 +1368,32 @@
   background: var(--color-bg-elevated);
 }
 
+.expandedQueueCover {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.expandedQueueCoverPlaceholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expandedQueueCoverLetter {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
 .expandedQueueItemActive {
   background: var(--color-bg-elevated);
   border-left-color: var(--color-accent);
@@ -1331,7 +1419,7 @@
 }
 
 .expandedQueueIndex {
-  width: 20px;
+  width: 10px;
   text-align: right;
   color: var(--color-text-muted);
   font-size: 11px;
@@ -1357,7 +1445,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100px;
+  /* max-width: 100px; */
   flex-shrink: 0;
 }
 
@@ -1417,6 +1505,12 @@
   align-items: flex-end;
   gap: 12px;
   height: 18px;
+}
+
+.topStripWaveWrap {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
 .topStripTime {

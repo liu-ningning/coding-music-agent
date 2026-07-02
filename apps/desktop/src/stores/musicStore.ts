@@ -31,6 +31,8 @@ interface MusicStore {
   sessions: Record<string, SessionMusicData>;
   // 当前活跃的 sessionId
   activeSessionId: string | null;
+  // 音乐面板展开状态
+  showExpandedPanel: boolean;
 
   // 初始化 Session
   initSession: (sessionId: string) => void;
@@ -56,6 +58,9 @@ interface MusicStore {
   addPlayedTracks: (sessionId: string, trackIds: string[]) => void;
   getPlayedTrackIds: (sessionId: string) => string[];
   clearPlayedTracks: (sessionId: string) => void;
+
+  // 音乐面板展开控制
+  setShowExpandedPanel: (show: boolean) => void;
 }
 
 export const useMusicStore = create<MusicStore>((set, get) => ({
@@ -65,6 +70,7 @@ export const useMusicStore = create<MusicStore>((set, get) => ({
   },
   sessions: {},
   activeSessionId: null,
+  showExpandedPanel: false,
 
   initSession: (sessionId) => {
     const { sessions } = get();
@@ -230,4 +236,6 @@ export const useMusicStore = create<MusicStore>((set, get) => ({
       },
     });
   },
+
+  setShowExpandedPanel: (show) => set({ showExpandedPanel: show }),
 }));

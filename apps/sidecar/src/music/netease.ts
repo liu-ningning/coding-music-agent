@@ -655,6 +655,7 @@ export class NeteaseMusicProvider implements MusicProvider {
   private parseSong(song: any): MusicTrack {
     const artists = (song.ar || song.artists || []).map((a: any) => a.name).join('/');
     const album = song.al?.name || song.album?.name || '';
+    const coverUrl = song.al?.picUrl || song.album?.picUrl || song.ar?.[0]?.picUrl || undefined;
 
     return {
       id: `track_${song.id}`,
@@ -662,6 +663,7 @@ export class NeteaseMusicProvider implements MusicProvider {
       providerTrackId: String(song.id),
       title: song.name || 'Unknown',
       artists: artists ? artists.split('/') : ['Unknown'],
+      coverUrl,
       album: album || undefined,
       durationMs: song.dt || song.duration || 0,
       playable: true,

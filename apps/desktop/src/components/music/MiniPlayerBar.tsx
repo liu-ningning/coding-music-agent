@@ -5,7 +5,6 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
 import { fetchRecommendation, getCurrentMood } from '@/clients/musicClient';
 import { RefreshIcon } from '@/components/common/RefreshIcon';
-import { WaveBars } from '@/components/common/WaveBars';
 import { IconPrevious, IconPlay, IconPause, IconNext, IconTarget, IconDislike, IconMusic, IconNight, IconVolume, IconVolumeMute, IconLyrics, IconLyricsOff } from '@/components/common/Icons';
 import { ExpandedPanel } from './ExpandedPanel';
 import s from '@/styles/layout.module.css';
@@ -46,7 +45,8 @@ function formatTime(seconds: number): string {
 export function MiniPlayerBar() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showVolume, setShowVolume] = useState(false);
-  const [showExpanded, setShowExpanded] = useState(false);
+  const showExpanded = useMusicStore((st) => st.showExpandedPanel);
+  const setShowExpanded = useMusicStore((st) => st.setShowExpandedPanel);
   const [showLyricsPopup, setShowLyricsPopup] = useState(false);
   const [showLyrics, setShowLyrics] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -340,14 +340,20 @@ export function MiniPlayerBar() {
 
   const hasLyrics = lyricLines.length > 0;
 
-  if (showExpanded) return <ExpandedPanel onClose={() => setShowExpanded(false)} />;
-
   return (
+    <>
+    {showExpanded && <ExpandedPanel onClose={() => setShowExpanded(false)} />}
     <footer className={s.bottomArea}>
       <div className={s.bottomAreaMain}>
         {/* 左侧：歌曲信息 */}
         <div className={s.playerLeft}>
-          <WaveBars playing={playing} />
+          {track?.coverUrl ? (
+            <img className={`${s.playerCover} ${playing ? s.playerCoverSpinning : ''}`} src={track.coverUrl} alt="" />
+          ) : track ? (
+            <div className={`${s.playerCoverPlaceholder} ${playing ? s.playerCoverPlaceholderSpinning : ''}`}>
+              <span className={s.playerCoverLetter}>{(track.title || '?')[0]}</span>
+            </div>
+          ) : null}
           {track ? (
             <div className={s.playerInfo}>
               <div className={s.playerTitle}>{track.title}</div>
@@ -483,5 +489,6 @@ export function MiniPlayerBar() {
       )}
       </div>
     </footer>
+    </>
   );
 }

@@ -204,6 +204,13 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
           <div className={s.expandedFixedSection}>
             <div className={s.expandedSectionTitle}>当前播放</div>
             <div className={s.expandedTrackRow}>
+              {track.coverUrl ? (
+                <img className={s.expandedTrackCover} src={track.coverUrl} alt="" />
+              ) : (
+                <div className={s.expandedTrackCoverPlaceholder}>
+                  <span className={s.expandedQueueCoverLetter}>{(track.title || '?')[0]}</span>
+                </div>
+              )}
               <div className={s.expandedTrackInfo}>
                 <div className={s.expandedTrackTitle}>{track.title}</div>
                 <div className={s.expandedTrackArtist}>{track.artists.join(', ')}{track.album && ` · ${track.album}`}</div>
@@ -278,8 +285,15 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
                         audioPlayer.playTrack(t);
                       }}
                     >
+                      {t.coverUrl ? (
+                        <img className={s.expandedQueueCover} src={t.coverUrl} alt="" loading="lazy" />
+                      ) : (
+                        <div className={s.expandedQueueCoverPlaceholder}>
+                          <span className={s.expandedQueueCoverLetter}>{(t.title || '?')[0]}</span>
+                        </div>
+                      )}
                       <span className={`${s.expandedQueueIndex} ${isActive ? s.expandedQueueActive : ''}`}>
-                        {isActive ? <IconPlay size={10} /> : i + 1}
+                        {i + 1}
                       </span>
                       <div className={s.expandedQueueInfo}>
                         <span className={`${s.expandedQueueTitle} ${isActive ? s.expandedQueueActive : ''}`}>{t.title}</span>
