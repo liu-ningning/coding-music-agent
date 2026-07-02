@@ -3,8 +3,9 @@ import { useMusicStore } from '@/stores/musicStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
+import { fetchRecommendation, getCurrentMood } from '@/clients/musicClient';
 import { RecommendationPreferences } from './RecommendationPreferences';
-import { IconPlay, IconPause, IconNext, IconChevronDown, IconChevronRight, IconCircleCheck, IconCircleX, IconCircle, IconLoading } from '@/components/common/Icons';
+import { IconPlay, IconPause, IconNext, IconChevronDown, IconChevronRight, IconCircleCheck, IconCircleX, IconCircle, IconLoading, IconRefresh, IconSettings } from '@/components/common/Icons';
 import { SIDECAR_BASE } from '@/config';
 import type { TrackFeatures } from '@music-coding/shared-types';
 import s from '@/styles/layout.module.css';
@@ -289,7 +290,8 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
         <div className={s.expandedScrollSection} style={{ position: 'relative' }}>
           {recommendLoading && (
             <div className={s.queueLoadingOverlay}>
-              <span>正在切换推荐...</span>
+              <div className={s.queueLoadingSpinner} />
+              <span>正在刷新歌单...</span>
             </div>
           )}
           {queue.length > 0 ? (
@@ -347,7 +349,23 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
 
         {/* Footer - 固定 */}
         <div className={s.expandedFooter}>
-          <button className={s.expandedFooterBtn} onClick={() => setShowPreferences(true)}>设置</button>
+          <button className={s.expandedFooterBtn} onClick={() => setShowPreferences(true)}>
+            <IconSettings size={12} /> 设置
+          </button>
+          <button
+            className={s.expandedFooterBtn}
+            onClick={async () => {
+              if (recommendLoading) return;
+              const rec = await fetchRecommendation(getCurrentMood(), true);
+              if (rec && rec.tracks.length > 0) {
+                const firstTrack = rec.tracks.find(t => t.playUrl) || rec.tracks[0];
+                await audioPlayer.playTrack(firstTrack);
+              }
+            }}
+            style={{ opacity: recommendLoading ? 0.5 : 1 }}
+          >
+            <IconRefresh size={12} /> {recommendLoading ? '刷新中...' : '刷新歌单'}
+          </button>
           <button className={s.expandedFooterBtn} onClick={onClose}>收起 ↗</button>
         </div>
       </div>
