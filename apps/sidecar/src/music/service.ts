@@ -216,8 +216,8 @@ export class MusicService {
       log.info(`[recommend] fillTrackUrls: 总 ${tracks.length} 首 → 可播放 ${playableTracks.length} 首, VIP ${vipTracks.length} 首`);
       tracks = playableTracks;
 
-      // 用被过滤的 VIP 歌曲的艺术家名搜索免费替代歌曲
-      if (vipTracks.length > 0) {
+      // 用被过滤的 VIP 歌曲的艺术家名搜索免费替代歌曲（仅已授权用户）
+      if (authStatus.connected && vipTracks.length > 0) {
         try {
           const replacementTracks = await this.searchFreeReplacements(vipTracks, mood, preferences);
           if (replacementTracks.length > 0) {

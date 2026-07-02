@@ -261,21 +261,21 @@ export function PermissionDrawer() {
                   <div>
                     <div className={s.neteaseUserName}>
                       {musicAuth.nickname || 'Music Lover'}
-                      {musicAuth.vipType === 0 && (
+                      {(musicAuth.vipType ?? 0) === 0 && (
                         <span className={s.vipBadge}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M4 4L10 16H12L18 4H15.5L12 12.5L8.5 4H4Z"/>
                           </svg>
                         </span>
                       )}
-                      {musicAuth.vipType === 1 && (
+                      {(musicAuth.vipType ?? 0) >= 10 && (musicAuth.vipType ?? 0) < 100 && (
                         <span className={`${s.vipBadge} ${s.vipBadgeActive}`}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M4 4L10 16H12L18 4H15.5L12 12.5L8.5 4H4Z"/>
                           </svg>
                         </span>
                       )}
-                      {musicAuth.vipType === 2 && (
+                      {(musicAuth.vipType ?? 0) >= 100 && (
                         <span className={`${s.vipBadge} ${s.vipBadgeActive} ${s.vipBadgeSvip}`}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M4 4L10 16H12L18 4H15.5L12 12.5L8.5 4H4Z"/>
