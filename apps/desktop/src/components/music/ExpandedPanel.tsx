@@ -23,6 +23,7 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
   } | null>(null);
   const [trackFeatures, setTrackFeatures] = useState<TrackFeatures | null>(null);
   const playback = useMusicStore((st) => st.playback);
+  const recommendLoading = useMusicStore((st) => st.recommendLoading);
   const sessionId = useSessionStore((st) => st.current?.id);
 
   // 分别订阅各个状态，确保变化时能正确触发重新渲染
@@ -34,6 +35,7 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
     if (!sessionId) return [];
     return st.sessions[sessionId]?.queue || [];
   });
+
   const currentIndex = useMusicStore((st) => {
     if (!sessionId) return 0;
     return st.sessions[sessionId]?.currentIndex || 0;
@@ -284,7 +286,12 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
         )}
 
         {/* 队列 - 可滚动区域 */}
-        <div className={s.expandedScrollSection}>
+        <div className={s.expandedScrollSection} style={{ position: 'relative' }}>
+          {recommendLoading && (
+            <div className={s.queueLoadingOverlay}>
+              <span>正在切换推荐...</span>
+            </div>
+          )}
           {queue.length > 0 ? (
             <>
               <div className={s.expandedSectionTitle}>队列 · {queue.length} 首</div>

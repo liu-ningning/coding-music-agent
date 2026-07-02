@@ -33,6 +33,8 @@ interface MusicStore {
   activeSessionId: string | null;
   // 音乐面板展开状态
   showExpandedPanel: boolean;
+  // 推荐加载中
+  recommendLoading: boolean;
 
   // 初始化 Session
   initSession: (sessionId: string) => void;
@@ -71,6 +73,7 @@ export const useMusicStore = create<MusicStore>((set, get) => ({
   sessions: {},
   activeSessionId: null,
   showExpandedPanel: false,
+  recommendLoading: false,
 
   initSession: (sessionId) => {
     const { sessions } = get();
@@ -103,8 +106,7 @@ export const useMusicStore = create<MusicStore>((set, get) => ({
   setPlayback: (state) => set({ playback: state }),
 
   setRecommendation: (sessionId, rec) => {
-    const { sessions, initSession } = get();
-    if (!sessions[sessionId]) initSession(sessionId);
+    const { sessions } = get();
     const sessionData = sessions[sessionId] || defaultSessionData();
     set({
       sessions: {
@@ -121,8 +123,7 @@ export const useMusicStore = create<MusicStore>((set, get) => ({
   },
 
   setMode: (sessionId, mode) => {
-    const { sessions, initSession } = get();
-    if (!sessions[sessionId]) initSession(sessionId);
+    const { sessions } = get();
     const sessionData = sessions[sessionId] || defaultSessionData();
     set({
       sessions: {
@@ -133,8 +134,7 @@ export const useMusicStore = create<MusicStore>((set, get) => ({
   },
 
   setQueue: (sessionId, tracks) => {
-    const { sessions, initSession } = get();
-    if (!sessions[sessionId]) initSession(sessionId);
+    const { sessions } = get();
     const sessionData = sessions[sessionId] || defaultSessionData();
     set({
       sessions: {
@@ -238,4 +238,5 @@ export const useMusicStore = create<MusicStore>((set, get) => ({
   },
 
   setShowExpandedPanel: (show) => set({ showExpandedPanel: show }),
+  setRecommendLoading: (loading) => set({ recommendLoading: loading }),
 }));

@@ -1405,6 +1405,21 @@
   padding: 24px 0;
 }
 
+.queueLoadingOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--color-bg-base-rgb, 0, 0, 0), 0.7);
+  z-index: 10;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  backdrop-filter: blur(4px);
+  border-radius: 6px;
+  margin: 4px;
+}
+
 .expandedQueueIndex {
   width: 10px;
   text-align: right;

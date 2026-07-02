@@ -577,6 +577,12 @@ export class NeteaseMusicProvider implements MusicProvider {
           const songInfo = songInfoMap.get(t.providerTrackId);
           const url = urlMap.get(t.providerTrackId);
 
+          // 已有 playUrl 的歌曲（如每日推荐）直接保留，无需再查
+          if (t.playUrl && !songInfo) {
+            playableTracks.push(t);
+            continue;
+          }
+
           // 没有歌曲信息或 URL 的歌曲直接跳过
           if (!songInfo || !url) {
             noUrlCount++;

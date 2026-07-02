@@ -87,7 +87,14 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     const { sessions } = useMusicStore.getState();
-    return sessions[sessionId]?.recommendation || null;
+    const existing = sessions[sessionId]?.recommendation || null;
+    const existingMood = existing?.atmosphere?.mood;
+    const neededMood = mood || getCurrentMood();
+    // 如果请求的 mood 与已有推荐不同，重新获取（强制 refresh 避免用缓存）
+    if (existingMood && existingMood !== neededMood) {
+      return fetchRecommendation(mood, true, includeDaily, currentTrackId);
+    }
+    return existing;
   }
 
   const targetMood = mood || getCurrentMood();
@@ -95,6 +102,7 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
 
   fetching = true;
   currentRecommendation = null;
+  useMusicStore.getState().setRecommendLoading(true);
 
   try {
     const { getPlayedTrackIds } = useMusicStore.getState();
@@ -121,11 +129,9 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
     const playableTracks = recommendation.tracks.filter(t => t.playUrl);
     debugInfo(MODULE, `获取 ${recommendation.tracks.length} 首, ${playableTracks.length} 可播放`);
 
-    // 更新 store
-    const { setRecommendation, setQueue, setActiveSession } = useMusicStore.getState();
-    setActiveSession(sessionId);
+    // 更新 store（setRecommendation 内部已设置 queue 和 mode，无需单独调用 setQueue）
+    const { setRecommendation } = useMusicStore.getState();
     setRecommendation(sessionId, recommendation);
-    setQueue(sessionId, recommendation.tracks);
 
     // 更新氛围
     const { setMood } = useUIAtmosphereStore.getState();
@@ -138,6 +144,7 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
     return null;
   } finally {
     fetching = false;
+    useMusicStore.getState().setRecommendLoading(false);
   }
 }
 

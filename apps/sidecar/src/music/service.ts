@@ -167,13 +167,15 @@ export class MusicService {
       try {
         const dailyTracks = await this.provider.getDailyRecommendations();
         if (dailyTracks.length > 0) {
+          // 每日推荐单独填充播放链接（避免被 fillTrackUrls 过滤掉）
+          const { playableTracks: playableDaily } = await this.provider.fillTrackUrls(dailyTracks);
           // 标记每日推荐来源
-          const dailyTracksWithSource = dailyTracks.map(t => ({ ...t, source: 'daily' as const }));
+          const dailyTracksWithSource = playableDaily.map(t => ({ ...t, source: 'daily' as const }));
           // 过滤已播放歌曲
           const playedSet = new Set(playedTrackIds);
           const filteredDaily = dailyTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
-          // 每日推荐和搜索结果混合
-          tracks = [...filteredDaily, ...tracks];
+          // 搜索结果放前面（mood 相关），每日推荐放后面（补充）
+          tracks = [...tracks, ...filteredDaily];
           source = 'netease+daily';
           log.info(`混入每日推荐: ${filteredDaily.length} 首, 总计 ${tracks.length} 首`);
         }

@@ -60,7 +60,9 @@ export function TopStrip() {
         body: JSON.stringify({ state }),
       });
     } catch {}
+    // 先获取推荐，再打开面板（避免面板先显示旧数据）
     const rec = await fetchRecommendation(mood, true);
+    useMusicStore.getState().setShowExpandedPanel(true);
     if (rec && rec.tracks.length > 0) await autoPlayRecommendation();
   };
 
