@@ -189,7 +189,7 @@ export class MusicService {
         const similarTracks = await this.provider.getSimilarTracks(currentTrackId);
         if (similarTracks.length > 0) {
           // 标记相似歌曲来源
-          const similarTracksWithSource = similarTracks.map(t => ({ ...t, source: 'daily' as const }));
+          const similarTracksWithSource = similarTracks.map(t => ({ ...t, source: 'similar' as const }));
           // 过滤已播放歌曲
           const playedSet = new Set(playedTrackIds);
           const filteredSimilar = similarTracksWithSource.filter(t => !playedSet.has(t.providerTrackId));
@@ -226,7 +226,7 @@ export class MusicService {
             const existingIds = new Set(tracks.map(t => t.providerTrackId));
             const filtered = replacementTracks
               .filter(t => !playedSet.has(t.providerTrackId) && !existingIds.has(t.providerTrackId))
-              .map(t => ({ ...t, source: 'daily' as const })); // 标记为推荐来源，与被替换的歌曲一致
+              .map(t => ({ ...t, source: 'vip_replacement' as const })); // 标记为 VIP 免费替代
             tracks = [...filtered, ...tracks];
             log.info(`[recommend] VIP 替换: ${vipTracks.length} 首 VIP → ${filtered.length} 首免费替代 (source=daily)`);
           } else {

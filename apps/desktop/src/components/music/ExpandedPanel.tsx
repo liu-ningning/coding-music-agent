@@ -263,35 +263,47 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
         <div className={s.expandedScrollSection}>
           {queue.length > 0 ? (
             <>
-              <div className={s.expandedSectionTitle}>队列 ({queue.length})</div>
+              <div className={s.expandedSectionTitle}>队列 · {queue.length} 首</div>
               <div className={s.expandedQueueList}>
-                {queue.map((t, i) => (
-                  <div
-                    key={t.id}
-                    className={s.expandedQueueItem}
-                    style={{
-                      color: i === idx ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                      background: i === idx ? 'var(--color-bg-elevated)' : 'transparent',
-                    }}
-                    onClick={() => {
-                      if (sessionId) {
-                        useMusicStore.getState().setCurrentIndex(sessionId, i);
-                      }
-                      audioPlayer.playTrack(t);
-                    }}
-                  >
-                    <span className={`${s.expandedQueueIndex} ${i === idx ? s.expandedQueueActive : ''}`}>{i === idx ? <IconPlay size={10} /> : i + 1}</span>
-                    <span className={`${s.expandedQueueTitle} ${i === idx ? s.expandedQueueActive : ''}`}>{t.title}</span>
-                    {t.source === 'daily' && (
-                      <span className={s.queueSourceTag}>推荐</span>
-                    )}
-                    <span style={{ fontSize: 10, marginLeft: 8, color: 'var(--color-text-muted)' }}>{t.artists[0]}</span>
-                  </div>
-                ))}
+                {queue.map((t, i) => {
+                  const isActive = i === idx;
+                  return (
+                    <div
+                      key={t.id}
+                      className={`${s.expandedQueueItem} ${isActive ? s.expandedQueueItemActive : ''}`}
+                      onClick={() => {
+                        if (sessionId) {
+                          useMusicStore.getState().setCurrentIndex(sessionId, i);
+                        }
+                        audioPlayer.playTrack(t);
+                      }}
+                    >
+                      <span className={`${s.expandedQueueIndex} ${isActive ? s.expandedQueueActive : ''}`}>
+                        {isActive ? <IconPlay size={10} /> : i + 1}
+                      </span>
+                      <div className={s.expandedQueueInfo}>
+                        <span className={`${s.expandedQueueTitle} ${isActive ? s.expandedQueueActive : ''}`}>{t.title}</span>
+                        <span className={s.expandedQueueArtist}>{t.artists.join(', ')}</span>
+                      </div>
+                      {(t.source === 'daily' || t.source === 'similar' || t.source === 'vip_replacement') && (
+                        <span
+                          className={s.queueSourceTag}
+                          data-tooltip={
+                            t.source === 'daily' ? '来自网易云每日个性化推荐'
+                            : t.source === 'similar' ? '基于当前歌曲的相似推荐'
+                            : 'VIP 歌曲的免费替代版本'
+                          }
+                        >
+                          推荐
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </>
           ) : (
-            <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 12, padding: 20 }}>暂无队列</div>
+            <div className={s.expandedQueueEmpty}>暂无队列</div>
           )}
         </div>
 

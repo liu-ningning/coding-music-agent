@@ -1239,7 +1239,7 @@
 .expandedQueueList {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .expandedFeedback {
@@ -1293,29 +1293,72 @@
 .expandedQueueItem {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 12px;
-  padding: 2px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-left: 2px solid transparent;
+}
+
+.expandedQueueItem:hover {
+  background: var(--color-bg-elevated);
+}
+
+.expandedQueueItemActive {
+  background: var(--color-bg-elevated);
+  border-left-color: var(--color-accent);
+}
+
+.expandedQueueItemActive:hover {
+  background: var(--color-bg-elevated);
+}
+
+.expandedQueueInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.expandedQueueEmpty {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 24px 0;
 }
 
 .expandedQueueIndex {
-  width: 16px;
+  width: 20px;
   text-align: right;
   color: var(--color-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
-.expandedQueueActive { color: var(--color-text-primary); }
+
+.expandedQueueActive {
+  color: var(--color-accent);
+}
 
 .expandedQueueTitle {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .expandedQueueArtist {
-  font-size: 10px;
-  margin-left: auto;
+  font-size: 11px;
   color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+  flex-shrink: 0;
 }
 
 .expandedFooter {
@@ -2717,13 +2760,41 @@
 /* ── 队列来源标签 ── */
 .queueSourceTag {
   display: inline-block;
-  padding: 1px 5px;
-  margin-left: 6px;
+  padding: 2px 6px;
+  margin-left: 4px;
   font-size: 9px;
   font-weight: 500;
   color: var(--color-accent);
-  background: rgba(var(--color-accent-rgb), 0.1);
-  border-radius: 3px;
+  background: rgba(var(--color-accent-rgb), 0.12);
+  border-radius: 4px;
   vertical-align: middle;
   flex-shrink: 0;
+  letter-spacing: 0.3px;
+  position: relative;
+  cursor: default;
+}
+
+.queueSourceTag::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--color-text-primary);
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.queueSourceTag:hover::after {
+  opacity: 1;
 }
