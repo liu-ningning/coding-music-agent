@@ -206,7 +206,22 @@ export class AgentService {
       let errorOutput = '';
       let buffer = '';
 
+      // 超时机制：60s 无输出则 kill 进程
+      const TIMEOUT_MS = 60_000;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const resetTimeout = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          log.error(`Claude CLI 超时 (${TIMEOUT_MS / 1000}s 无输出)，终止进程`);
+          claude.kill('SIGTERM');
+          sessionStore.update(sessionId, { status: 'failed' as AgentRunStatus });
+          onError(new Error(`Claude CLI 超时，${TIMEOUT_MS / 1000}s 无响应`));
+        }, TIMEOUT_MS);
+      };
+      resetTimeout();
+
       claude.stdout.on('data', (data: Buffer) => {
+        resetTimeout(); // 收到数据，重置超时
         buffer += data.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
@@ -231,6 +246,7 @@ export class AgentService {
       });
 
       claude.on('close', (code) => {
+        if (timeoutId) clearTimeout(timeoutId);
         if (code === 0 && output) {
           messageStore.add({
             id: `msg_${randomUUID().slice(0, 8)}`,
@@ -257,6 +273,7 @@ export class AgentService {
       });
 
       claude.on('error', (err) => {
+        if (timeoutId) clearTimeout(timeoutId);
         sessionStore.update(sessionId, { status: 'failed' as AgentRunStatus });
         onError(new Error(`Failed to start Claude CLI: ${err.message}`));
       });

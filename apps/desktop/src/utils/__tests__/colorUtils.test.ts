@@ -3,19 +3,23 @@ import { withAlpha } from '../colorUtils';
 
 describe('withAlpha', () => {
   describe('hex 颜色输入', () => {
-    it('应该将 6 位 hex 转换为 8 位 hex（含 alpha）', () => {
-      expect(withAlpha('#58A6A6', '15')).toBe('#58A6A615');
-      expect(withAlpha('#58A6A6', '40')).toBe('#58A6A640');
-      expect(withAlpha('#58A6A6', 'ff')).toBe('#58A6A6ff');
-      expect(withAlpha('#58A6A6', '00')).toBe('#58A6A600');
+    it('应该将 6 位 hex 转换为 rgba 格式', () => {
+      // 0x15 = 21, 21/255 ≈ 0.08
+      expect(withAlpha('#58A6A6', '15')).toBe('rgba(88, 166, 166, 0.08)');
+      // 0x40 = 64, 64/255 ≈ 0.25
+      expect(withAlpha('#58A6A6', '40')).toBe('rgba(88, 166, 166, 0.25)');
+      // 0xff = 255, 255/255 = 1.00
+      expect(withAlpha('#58A6A6', 'ff')).toBe('rgba(88, 166, 166, 1.00)');
+      // 0x00 = 0, 0/255 = 0.00
+      expect(withAlpha('#58A6A6', '00')).toBe('rgba(88, 166, 166, 0.00)');
     });
 
     it('应该处理不同颜色值', () => {
-      expect(withAlpha('#B56B6B', '20')).toBe('#B56B6B20');
-      expect(withAlpha('#6F8FAF', '30')).toBe('#6F8FAF30');
-      expect(withAlpha('#7E6FB5', '40')).toBe('#7E6FB540');
-      expect(withAlpha('#000000', '80')).toBe('#00000080');
-      expect(withAlpha('#FFFFFF', '15')).toBe('#FFFFFF15');
+      expect(withAlpha('#B56B6B', '20')).toBe('rgba(181, 107, 107, 0.13)');
+      expect(withAlpha('#6F8FAF', '30')).toBe('rgba(111, 143, 175, 0.19)');
+      expect(withAlpha('#7E6FB5', '40')).toBe('rgba(126, 111, 181, 0.25)');
+      expect(withAlpha('#000000', '80')).toBe('rgba(0, 0, 0, 0.50)');
+      expect(withAlpha('#FFFFFF', '15')).toBe('rgba(255, 255, 255, 0.08)');
     });
   });
 
@@ -63,27 +67,34 @@ describe('withAlpha', () => {
   });
 
   describe('氛围层实际使用场景', () => {
-    it('feature_flow 颜色应该生成有效的 8 位 hex', () => {
+    it('feature_flow 颜色应该生成有效的 rgba', () => {
       const glow = '#58A6A6';
-      expect(withAlpha(glow, '15')).toBe('#58A6A615');
-      expect(withAlpha(glow, '40')).toBe('#58A6A640');
-      expect(withAlpha(glow, '20')).toBe('#58A6A620');
-      expect(withAlpha(glow, '30')).toBe('#58A6A630');
-    });
-
-    it('neutral 默认颜色应该生成有效的 rgba', () => {
-      const glow = 'rgba(255,255,255,0.08)';
-      // 所有 alpha 变体都应该返回有效 rgba
       expect(withAlpha(glow, '15')).toMatch(/^rgba\(/);
       expect(withAlpha(glow, '40')).toMatch(/^rgba\(/);
       expect(withAlpha(glow, '20')).toMatch(/^rgba\(/);
       expect(withAlpha(glow, '30')).toMatch(/^rgba\(/);
     });
 
-    it('emergency_focus 颜色应该生成有效的 8 位 hex', () => {
+    it('neutral 默认颜色应该生成有效的 rgba', () => {
+      const glow = 'rgba(255,255,255,0.08)';
+      expect(withAlpha(glow, '15')).toMatch(/^rgba\(/);
+      expect(withAlpha(glow, '40')).toMatch(/^rgba\(/);
+      expect(withAlpha(glow, '20')).toMatch(/^rgba\(/);
+      expect(withAlpha(glow, '30')).toMatch(/^rgba\(/);
+    });
+
+    it('emergency_focus 颜色应该生成有效的 rgba', () => {
       const glow = '#B56B6B';
-      expect(withAlpha(glow, '15')).toBe('#B56B6B15');
-      expect(withAlpha(glow, '40')).toBe('#B56B6B40');
+      expect(withAlpha(glow, '15')).toMatch(/^rgba\(/);
+      expect(withAlpha(glow, '40')).toMatch(/^rgba\(/);
+    });
+
+    it('所有 mood 颜色格式一致（均为 rgba）', () => {
+      const moods = ['#58A6A6', '#6F8FAF', '#7E6FB5', '#7A8B9A', '#B56B6B', '#9A8BAF', '#4A5A7A', 'rgba(255,255,255,0.08)'];
+      for (const color of moods) {
+        const result = withAlpha(color, '40');
+        expect(result).toMatch(/^rgba\(/);
+      }
     });
   });
 });

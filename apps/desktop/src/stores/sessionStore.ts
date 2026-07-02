@@ -208,7 +208,16 @@ function syncToOtherStores(sessionId: string) {
   });
 
   import('./musicStore').then(({ useMusicStore }) => {
-    useMusicStore.getState().setActiveSession(sessionId);
-    useMusicStore.getState().initSession(sessionId);
+    const musicStore = useMusicStore.getState();
+    musicStore.setActiveSession(sessionId);
+    musicStore.initSession(sessionId);
+
+    // 如果该 Session 没有推荐，自动获取
+    const sessionData = musicStore.sessions[sessionId];
+    if (!sessionData?.recommendation) {
+      import('@/clients/musicClient').then(({ fetchRecommendation }) => {
+        fetchRecommendation();
+      });
+    }
   });
 }

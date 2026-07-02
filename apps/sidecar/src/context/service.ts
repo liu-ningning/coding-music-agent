@@ -625,12 +625,8 @@ export class ContextService {
   }
 
   // 添加用户消息到近期消息列表
+  // 情绪分析基于用户消息文本，不涉及项目文件，始终启用
   addUserMessage(content: string): void {
-    const permission = this.permissionService.getPermissions().projectContext;
-    if (permission === 'disabled') {
-      return;
-    }
-
     this.recentMessages.push({
       content,
       timestamp: Date.now(),
@@ -641,17 +637,13 @@ export class ContextService {
       this.recentMessages.shift();
     }
 
-    // 分析情绪
+    // 分析情绪（始终启用，不依赖 projectContext 权限）
     this.analyzeAndUpdateEmotion();
   }
 
   // 分析并更新情绪状态
+  // 情绪分析基于用户消息文本，不涉及项目文件，始终启用
   private analyzeAndUpdateEmotion(): void {
-    const permission = this.permissionService.getPermissions().projectContext;
-    if (permission === 'disabled') {
-      return;
-    }
-
     const emotion = this.detectEmotionFromMessages();
     if (emotion.emotion !== this.lastDetectedEmotion && emotion.confidence > this.emotionConfidence) {
       this.lastDetectedEmotion = emotion.emotion;

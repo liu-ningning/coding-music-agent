@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMusicStore } from '@/stores/musicStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { audioPlayer } from '@/clients/audioPlayer';
 import { FeedbackButtons } from './FeedbackButtons';
 import { RecommendationPreferences } from './RecommendationPreferences';
@@ -12,6 +13,7 @@ import s from '@/styles/layout.module.css';
 export function ExpandedPanel({ onClose }: { onClose: () => void }) {
   const [showPreferences, setShowPreferences] = useState(false);
   const [showFeatures, setShowFeatures] = useState(false);
+  const [authConnected, setAuthConnected] = useState<boolean | null>(null);
   const [warmupStatus, setWarmupStatus] = useState<{
     highPriorityWarmed: boolean;
     moods: Record<string, string>;
@@ -45,23 +47,26 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
   const playing = playback.status === 'playing';
   const label = rec?.atmosphere.label || 'Neutral';
 
-  // 获取预热状态
+  // 获取预热状态和授权状态
   useEffect(() => {
-    const fetchWarmupStatus = async () => {
+    const fetchStatus = async () => {
       try {
-        const res = await fetch(`${SIDECAR_BASE}/music/warmup-status`);
-        if (res.ok) {
-          const data = await res.json();
-          setWarmupStatus(data);
+        const [warmupRes, authRes] = await Promise.all([
+          fetch(`${SIDECAR_BASE}/music/warmup-status`),
+          fetch(`${SIDECAR_BASE}/music/status`),
+        ]);
+        if (warmupRes.ok) setWarmupStatus(await warmupRes.json());
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          setAuthConnected(authData.connected);
         }
       } catch (e) {
-        // 获取预热状态失败，静默处理
+        // 获取状态失败，静默处理
       }
     };
 
-    fetchWarmupStatus();
-    // 每 5 秒刷新一次预热状态
-    const interval = setInterval(fetchWarmupStatus, 5000);
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -149,6 +154,19 @@ export function ExpandedPanel({ onClose }: { onClose: () => void }) {
               )}
             </div>
             <div className={s.expandedSectionContent}>{rec.reason}</div>
+          </div>
+        )}
+
+        {/* 未授权引导 */}
+        {authConnected === false && (
+          <div className={s.expandedFixedSectionCompact}>
+            <div className={s.authHint}>
+              <span>🎵 连接网易云获取个性化推荐和更多曲目</span>
+              <button className={s.authHintBtn} onClick={() => {
+                useSettingsStore.getState().openPermissions();
+                onClose();
+              }}>连接</button>
+            </div>
           </div>
         )}
 

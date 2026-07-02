@@ -9,6 +9,24 @@ import { SIDECAR_BASE } from '@/config';
 
 const MODULE = 'music';
 
+// 带重试的 fetch（网络抖动时自动重试）
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      if (i === retries) return res; // 最后一次返回原始响应，让调用方处理
+      debugWarn(MODULE, `请求失败 (${res.status})，${i + 1}/${retries} 重试中...`);
+    } catch (err) {
+      if (i === retries) throw err;
+      debugWarn(MODULE, `网络错误，${i + 1}/${retries} 重试中...`);
+    }
+    // 指数退避：1s, 2s
+    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+  }
+  throw new Error('Max retries exceeded');
+}
+
 // 标记是否正在获取推荐（防止重复请求）
 let fetching = false;
 // 存储当前推荐结果
@@ -82,7 +100,7 @@ export async function fetchRecommendation(mood?: CodingMoodState, refresh: boole
     const { getPlayedTrackIds } = useMusicStore.getState();
     const playedTrackIds = getPlayedTrackIds(sessionId);
 
-    const res = await fetch(`${SIDECAR_BASE}/music/recommend`, {
+    const res = await fetchWithRetry(`${SIDECAR_BASE}/music/recommend`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, mood: targetMood, refresh, preferences, playedTrackIds, includeDaily, currentTrackId }),

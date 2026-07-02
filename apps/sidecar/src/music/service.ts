@@ -906,61 +906,84 @@ export class MusicService {
   }
 
   private generateReason(mood: CodingMoodState, source: string, preferences: string[] = []): string {
-    const sourceLabel = source === 'hot' ? '热歌榜'
-      : source === 'netease' ? '网易云搜索'
-      : source === 'netease+daily' ? '个性化推荐'
-      : '为你精选';
+    // 来源标签
+    const sourceLabels: Record<string, string> = {
+      hot: '热歌榜',
+      netease: '网易云搜索',
+      'netease+daily': '每日推荐',
+      'netease+similar': '相似歌曲',
+      fallback: '精选曲库',
+    };
+    const sourceLabel = sourceLabels[source] || '为你推荐';
 
-    // 基础推荐理由（根据 Mood）
+    // 基础推荐理由（每个 Mood 5 个变体）
     const moodReasons: Record<CodingMoodState, string[]> = {
       feature_flow: [
         '适合推进新功能的节奏感音乐',
         '帮助保持编码动力的活力旋律',
         '让代码如行云流水般顺畅的配乐',
+        '新功能开发的高效配乐',
+        '写代码时的活力背景音',
       ],
       debug_calm: [
         'Debug 阶段需要的平静专注音乐',
         '帮助理清思路的舒缓旋律',
         '让 Bug 无处遁形的冷静配乐',
+        '调试时的平静伴侣',
+        '排查问题的专注配乐',
       ],
       deep_refactor: [
         '深夜重构的沉浸式氛围音乐',
         '让代码重构更有节奏感的配乐',
         '适合深度思考的低音环境音',
+        '重构时的沉浸式背景',
+        '代码整理的安静伴侣',
       ],
       review_focus: [
         '代码 Review 时的低干扰背景音',
         '帮助专注阅读代码的轻柔音乐',
         '让代码审查更高效的安静配乐',
+        'Review 时的专注伴侣',
+        '阅读代码的轻柔背景',
       ],
       emergency_focus: [
         '紧急模式下的舒缓音乐',
         '帮助快速定位问题的专注配乐',
         '让紧急修复更从容的背景音',
+        '线上故障时的冷静配乐',
+        '紧急处理的专注伴侣',
       ],
       low_energy: [
         '温和陪伴恢复精力的音乐',
         '适合休息恢复的治愈旋律',
         '让疲惫感消散的轻柔配乐',
+        '恢复状态的温暖背景',
+        '低能量时的温和陪伴',
       ],
       late_night_flow: [
         '深夜编码的深色氛围音乐',
         '适合夜间工作的低亮度配乐',
         '让深夜编程更有氛围的背景音',
+        '夜猫子的专属配乐',
+        '深夜陪伴的暗色旋律',
       ],
       recovery_mode: [
         '逐步恢复状态的轻柔音乐',
         '帮助重拾编码节奏的渐进旋律',
         '让状态回归的温和配乐',
+        '恢复期的渐进背景音',
+        '重新出发的轻柔伴侣',
       ],
       neutral: [
         '适合当前编码状态的音乐',
         '帮助保持工作节奏的背景音乐',
         '让编程更愉悦的通用配乐',
+        '编码时的舒适背景',
+        '日常工作的平衡配乐',
       ],
     };
 
-    // 偏好增强理由
+    // 偏好增强（组合多个偏好）
     const preferenceEnhancements: Record<string, string[]> = {
       focus: ['专注', '高效', '精准'],
       relaxed: ['轻松', '舒适', '愉悦'],
@@ -973,14 +996,15 @@ export class MusicService {
     const baseReasons = moodReasons[mood] || moodReasons.neutral;
     const baseReason = baseReasons[Math.floor(Math.random() * baseReasons.length)];
 
-    // 如果有偏好，添加偏好增强
+    // 组合多个偏好关键词
     let enhancement = '';
     if (preferences.length > 0) {
-      const pref = preferences[0]; // 使用第一个偏好
-      const enhancements = preferenceEnhancements[pref];
-      if (enhancements) {
-        const enhancementWord = enhancements[Math.floor(Math.random() * enhancements.length)];
-        enhancement = `，更显${enhancementWord}`;
+      const allWords = preferences
+        .flatMap(p => preferenceEnhancements[p] || [])
+        .filter(Boolean);
+      if (allWords.length > 0) {
+        const word = allWords[Math.floor(Math.random() * allWords.length)];
+        enhancement = `，更显${word}`;
       }
     }
 

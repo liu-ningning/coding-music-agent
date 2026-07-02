@@ -9,6 +9,34 @@
   position: relative;
 }
 
+.statusBanner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 16px;
+  background: var(--color-accent-emergency);
+  color: white;
+  font-size: 12px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.statusBannerBtn {
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  color: white;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.statusBannerBtn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .mainRow {
   display: flex;
   flex: 1;
@@ -1290,6 +1318,8 @@
   padding: 12px 16px;
   border-top: 1px solid var(--color-border-subtle);
   background: var(--color-bg-panel);
+  overflow: visible;
+  max-height: 75px;
 }
 
 .expandedSectionTitle {
@@ -1471,6 +1501,8 @@
   overflow-x: auto;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
+  position: relative;
+  min-height: 28px;
 }
 
 .feedbackGroup::-webkit-scrollbar {
@@ -1715,13 +1747,13 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  transition: opacity 900ms ease-in-out;
+  transition: opacity 400ms ease-out;
 }
 
 .ambientGlow {
   position: absolute;
   inset: 0;
-  transition: opacity 900ms ease-in-out;
+  transition: opacity 600ms ease-out;
 }
 
 .ambientEdgeTop,
@@ -1729,7 +1761,7 @@
 .ambientEdgeLeft,
 .ambientEdgeRight {
   position: absolute;
-  transition: opacity 900ms ease-in-out;
+  transition: opacity 600ms ease-out, background 1200ms ease-in-out;
 }
 
 .ambientEdgeTop {
@@ -2426,13 +2458,19 @@
 
 /* ── 去重提示 ── */
 .dedupHint {
-  padding: 8px 12px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  padding: 6px 12px;
   background: var(--color-bg-elevated);
   border-radius: var(--radius-md);
   font-size: 11px;
   color: var(--color-text-secondary);
   text-align: center;
   animation: dedupFadeIn 300ms ease;
+  z-index: 10;
+  pointer-events: none;
 }
 
 @keyframes dedupFadeIn {
@@ -2891,4 +2929,32 @@
 
 .queueSourceTag:hover::after {
   opacity: 1;
+}
+
+.authHint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(var(--color-accent-rgb), 0.08);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.authHintBtn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--color-accent);
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms;
+}
+
+.authHintBtn:hover {
+  background: rgba(var(--color-accent-rgb), 0.12);
 }

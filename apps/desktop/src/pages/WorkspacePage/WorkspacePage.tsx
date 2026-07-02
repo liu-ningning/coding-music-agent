@@ -17,8 +17,8 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useSidecarStore } from '@/stores/sidecarStore';
 import { launchSidecar } from '@/clients/sidecarLauncher';
 import { useSidecarHealth } from '@/hooks/useSidecarHealth';
-import { fetchRecommendation } from '@/clients/musicClient';
-import { loadSessionsFromStorage, initSessionSync } from '@/clients/sessionClient';
+import { fetchRecommendation, autoPlayRecommendation } from '@/clients/musicClient';
+import { loadSessionsFromStorage, initSessionSync, createSession } from '@/clients/sessionClient';
 import { loadManualState } from '@/components/common/ManualStateSelector';
 import { audioPlayer } from '@/clients/audioPlayer';
 import { startSidecarLogStream } from '@/utils/debugLogger';
@@ -100,25 +100,38 @@ export function WorkspacePage() {
   }), []);
   useKeyboardShortcuts(shortcutHandlers());
 
-  // 用户点击时初始化音频并播放（仅首次）
+  // 用户点击时初始化音频（仅首次）
   const handleClick = useCallback(() => {
     if (!audioInited) {
       audioPlayer.init();
       setAudioInited(true);
+    }
+  }, [audioInited]);
 
-      // 仅首次点击时自动播放
-      if (queue.length > 0 && musicReady) {
-        const { playback } = useMusicStore.getState();
-        if (playback.status !== 'playing') {
-          audioPlayer.playTrack(queue[0]);
-        }
+  // 音频初始化后且队列就绪时，自动播放第一首（仅首次）
+  useEffect(() => {
+    if (audioInited && queue.length > 0) {
+      const { playback } = useMusicStore.getState();
+      if (playback.status !== 'playing') {
+        audioPlayer.playTrack(queue[0]);
       }
     }
-  }, [audioInited, queue, musicReady]);
+  }, [audioInited, queue]);
 
   return (
     <div className={s.workspace} onClick={handleClick}>
       <AmbientLayer />
+      {/* sidecar 异常状态提示 */}
+      {(sidecarStatus === 'crashed' || sidecarStatus === 'degraded') && (
+        <div className={s.statusBanner}>
+          <span>
+            {sidecarStatus === 'crashed' ? '⚠️ 服务已断开，正在重连...' : '⚠️ 服务不稳定，部分功能可能受影响'}
+          </span>
+          <button className={s.statusBannerBtn} onClick={() => launchSidecar()}>
+            重新连接
+          </button>
+        </div>
+      )}
       <TopBar />
       <div className={s.mainRow}>
         <Sidebar sessionSearchActive={sessionSearchActive} onSessionSearchClose={() => setSessionSearchActive(false)} />
@@ -132,7 +145,18 @@ export function WorkspacePage() {
       {currentApproval && <ApprovalDialog approval={currentApproval} />}
       <SettingsDrawer />
       <PermissionDrawer />
-      {showGuide && <FirstLaunchGuide onComplete={() => { localStorage.setItem(FIRST_LAUNCH_KEY, 'true'); setShowGuide(false); }} />}
+      {showGuide && <FirstLaunchGuide onComplete={async () => {
+        localStorage.setItem(FIRST_LAUNCH_KEY, 'true');
+        setShowGuide(false);
+        // 引导完成后自动创建 session 并获取推荐
+        try {
+          await createSession();
+          const rec = await fetchRecommendation();
+          if (rec && rec.tracks.length > 0) {
+            setMusicReady(true);
+          }
+        } catch {}
+      }} />}
     </div>
   );
 }
